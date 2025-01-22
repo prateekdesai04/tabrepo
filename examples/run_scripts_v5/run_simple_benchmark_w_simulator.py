@@ -3,7 +3,7 @@ from __future__ import annotations
 import pandas as pd
 
 from experiment_utils import ExperimentBatchRunner
-from tabrepo import EvaluationRepository, EvaluationRepositoryCollection
+from tabrepo import EvaluationRepository, EvaluationRepositoryCollection, Evaluator
 from tabrepo.scripts_v5.AutoGluon_class import AGWrapper
 
 
@@ -69,7 +69,9 @@ if __name__ == '__main__':
         "AutoGluon_bq_4h8c_2023_11_14",
     ]
 
-    metrics = repo_combined.compare_metrics(
+    evaluator = Evaluator(repo=repo_combined)
+
+    metrics = evaluator.compare_metrics(
         datasets=datasets,
         folds=folds,
         baselines=baselines,
@@ -81,7 +83,7 @@ if __name__ == '__main__':
     with pd.option_context("display.max_rows", None, "display.max_columns", None, "display.width", 1000):
         print(f"Config Metrics Example:\n{metrics.head(100)}")
 
-    evaluator_output = repo_combined.plot_overall_rank_comparison(
+    evaluator_output = evaluator.plot_overall_rank_comparison(
         results_df=metrics,
         save_dir=expname,
     )
