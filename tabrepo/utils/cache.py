@@ -92,11 +92,15 @@ def catchtime(name: str, logger=None) -> float:
 class Experiment:
     expname: str  # name of the parent experiment used to store the file
     name: str  # name of the specific experiment, e.g. "localsearch"
-    run_fun: Callable[[], list]  # function to execute to obtain results
+    run_fun: Callable[..., list]  # function to execute to obtain results
+    kwargs: dict = None
 
     def data(self, ignore_cache: bool = False):
+        kwargs = self.kwargs
+        if kwargs is None:
+           kwargs = {}
         return cache_function_dataframe(
-            lambda: pd.DataFrame(self.run_fun()),
+            lambda: pd.DataFrame(self.run_fun(**kwargs)),
             cache_name=self.name,
             cache_path=self.expname,
             ignore_cache=ignore_cache,
@@ -106,8 +110,11 @@ class Experiment:
 @dataclass
 class SimulationExperiment(Experiment):
     def data(self, ignore_cache: bool = False) -> dict:
+        kwargs = self.kwargs
+        if kwargs is None:
+           kwargs = {}
         return cache_function(
-            lambda: self.run_fun(),
+            lambda: self.run_fun(**kwargs),
             cache_name=self.name,
             cache_path=self.expname,
             ignore_cache=ignore_cache,
