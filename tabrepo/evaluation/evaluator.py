@@ -34,6 +34,7 @@ class Evaluator:
         folds: list[int] = None,
         configs: list[str] = None,
         baselines: list[str] = None,
+        convert_from_sample_to_batch: bool = False,
     ) -> pd.DataFrame:
         if datasets is None:
             datasets = self.repo.datasets()
@@ -54,7 +55,7 @@ class Evaluator:
             mask = mask & df_tr.index.get_level_values("framework").isin(configs)
         df_tr = df_tr[mask]
 
-        if self.repo.task_metadata is not None:
+        if self.repo.task_metadata is not None and convert_from_sample_to_batch:
             df_tr = convert_time_infer_s_from_sample_to_batch(df_tr, repo=self.repo)
 
         if self.repo._zeroshot_context.df_baselines is not None:
@@ -67,7 +68,7 @@ class Evaluator:
                 mask = mask & df_baselines.index.get_level_values("framework").isin(baselines)
             df_baselines = df_baselines[mask]
 
-            if self.repo.task_metadata is not None:
+            if self.repo.task_metadata is not None and convert_from_sample_to_batch:
                 df_baselines = convert_time_infer_s_from_sample_to_batch(df_baselines, repo=self.repo)
         else:
             if baselines:
