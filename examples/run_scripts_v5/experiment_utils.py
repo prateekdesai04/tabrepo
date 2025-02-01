@@ -4,6 +4,7 @@ import pandas as pd
 from typing import Callable, List
 
 from autogluon_benchmark.tasks.task_wrapper import OpenMLTaskWrapper
+from tabrepo.repository.repo_utils import convert_time_infer_s_from_batch_to_sample as _convert_time_infer_s_from_batch_to_sample
 from tabrepo.utils.cache import DummyExperiment, Experiment, SimulationExperiment
 from tabrepo import EvaluationRepository
 from experiment_runner import ExperimentRunner, OOFExperimentRunner
@@ -21,6 +22,7 @@ class ExperimentBatchRunner:
         experiment_cls: Callable = OOFExperimentRunner,
         cache_cls: Callable | None = SimulationExperiment,
         cache_cls_kwargs: dict = None,
+        convert_time_infer_s_from_batch_to_sample: bool = False,
     ) -> EvaluationRepository:
         results_lst = run_experiments(
             expname=expname,
@@ -43,6 +45,8 @@ class ExperimentBatchRunner:
         results_lst_df = [result["df_results"] for result in results_configs]
 
         df_configs = pd.concat(results_lst_df, ignore_index=True)
+        if convert_time_infer_s_from_batch_to_sample:
+            df_configs = _convert_time_infer_s_from_batch_to_sample(df=df_configs, task_metadata=task_metadata)
 
         repo: EvaluationRepository = EvaluationRepository.from_raw(
             df_configs=df_configs,
