@@ -5,10 +5,9 @@ from typing import Callable, List
 
 from autogluon_benchmark.tasks.task_wrapper import OpenMLTaskWrapper
 from tabrepo.repository.repo_utils import convert_time_infer_s_from_batch_to_sample as _convert_time_infer_s_from_batch_to_sample
-from tabrepo.utils.cache import DummyExperiment, Experiment, SimulationExperiment
+from tabrepo.utils.cache import AbstractCacheFunction, CacheFunctionPickle, CacheFunctionDummy
 from tabrepo import EvaluationRepository
 from experiment_runner import ExperimentRunner, OOFExperimentRunner
-
 
 class ExperimentBatchRunner:
     def generate_repo_from_experiments(
@@ -20,7 +19,7 @@ class ExperimentBatchRunner:
         task_metadata: pd.DataFrame,
         ignore_cache: bool,
         experiment_cls: Callable = OOFExperimentRunner,
-        cache_cls: Callable | None = SimulationExperiment,
+        cache_cls: AbstractCacheFunction | None = CacheFunctionPickle,
         cache_cls_kwargs: dict = None,
         convert_time_infer_s_from_batch_to_sample: bool = False,
     ) -> EvaluationRepository:
@@ -67,7 +66,7 @@ def run_experiments(
     task_metadata: pd.DataFrame,
     ignore_cache: bool,
     experiment_cls: Callable = ExperimentRunner,
-    cache_cls: Callable | None = Experiment,
+    cache_cls: AbstractCacheFunction | None = CacheFunctionPickle,
     cache_cls_kwargs: dict = None,
 ) -> list:
     '''
@@ -88,7 +87,7 @@ def run_experiments(
     result_lst: list, containing all metrics from fit() and predict() of all the given OpenML tasks
     '''
     if cache_cls is None:
-        cache_cls = DummyExperiment
+        cache_cls = CacheFunctionDummy
     if cache_cls_kwargs is None:
         cache_cls_kwargs = {}
     # FIXME: dataset or name? Where does `dataset` come from, why can it be different from `name`?
@@ -109,7 +108,7 @@ def run_experiments(
     result_lst = []
     num_datasets = len(tids)
     for i, tid in enumerate(tids):
-        task = OpenMLTaskWrapper.from_task_id(task_id=tid)
+        task = None  # lazy task loading
         task_name = task_metadata[task_metadata["tid"] == tid][dataset_name_column].iloc[0]
         print(f"Starting Dataset {i+1}/{num_datasets}...")
         for fold in folds:
@@ -119,22 +118,26 @@ def run_experiments(
                     f"\tFitting {task_name} on fold {fold} for method {method}"
                 )
 
-                experiment = cache_cls(
-                    expname=expname,
-                    name=cache_name,
-                    run_fun=lambda: experiment_cls(
+                cacher = cache_cls(cache_name=cache_name, cache_path=expname, **cache_cls_kwargs)
+
+                if task is None:
+                    if ignore_cache or not cacher.exists:
+                        task = OpenMLTaskWrapper.from_task_id(task_id=tid)
+
+                if task is not None:
+                    run_fun = lambda: experiment_cls(
                         method_cls=method_cls,
                         task=task,
                         fold=fold,
                         task_name=task_name,
                         method=method,
                         fit_args=method_kwargs,
-                    ).run(),
-                    **cache_cls_kwargs,
-                )
-                # FIXME: The output df still needs evaluation and formatting, currently just has predictions
-                # probabilities, fit and infer times
-                out = experiment.data(ignore_cache=ignore_cache)
+                    ).run()
+                    out = cacher.cache(fun=run_fun, ignore_cache=ignore_cache)
+                else:
+                    # load cache, no need to load task
+                    # TODO: Keep logging as in cacher.cache()
+                    out = cacher.load_cache()
                 result_lst.append(out)
 
     return result_lst
