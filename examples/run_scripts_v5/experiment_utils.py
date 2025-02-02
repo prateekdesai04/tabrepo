@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pandas as pd
-from typing import Callable, List
+from typing import Callable, List, Type
 
 from autogluon_benchmark.tasks.task_wrapper import OpenMLTaskWrapper
 from tabrepo.repository.repo_utils import convert_time_infer_s_from_batch_to_sample as _convert_time_infer_s_from_batch_to_sample
@@ -9,6 +9,14 @@ from tabrepo.utils.cache import AbstractCacheFunction, CacheFunctionPickle, Cach
 from tabrepo import EvaluationRepository
 from experiment_runner import ExperimentRunner, OOFExperimentRunner
 
+
+# TODO: Which save hierarchy?
+#  1. `expname/data/tasks/{tid}/{fold}/{method}/results.pkl`  <- Current implementation
+#  2. `expname/data/method/{method}/tasks/{tid}/{fold}/results.pkl`
+#  3. `expname/data/{tid}/{fold}/{method}/results.pkl`
+#  3. `expname/data/{method}/{tid}/{fold}/results.pkl`
+# TODO: Inspect artifact folder to load all results without needing to specify them explicitly
+#  generate_repo_from_dir(expname)
 class ExperimentBatchRunner:
     def generate_repo_from_experiments(
         self,
@@ -18,8 +26,8 @@ class ExperimentBatchRunner:
         methods: list[tuple[str, Callable, dict[str, ...]]],
         task_metadata: pd.DataFrame,
         ignore_cache: bool,
-        experiment_cls: Callable = OOFExperimentRunner,
-        cache_cls: AbstractCacheFunction | None = CacheFunctionPickle,
+        experiment_cls: Type[OOFExperimentRunner] = OOFExperimentRunner,
+        cache_cls: Type[AbstractCacheFunction] | None = CacheFunctionPickle,
         cache_cls_kwargs: dict = None,
         convert_time_infer_s_from_batch_to_sample: bool = False,
     ) -> EvaluationRepository:
@@ -65,8 +73,8 @@ def run_experiments(
     methods: list[tuple[str, Callable, dict[str, ...]]],
     task_metadata: pd.DataFrame,
     ignore_cache: bool,
-    experiment_cls: Callable = ExperimentRunner,
-    cache_cls: AbstractCacheFunction | None = CacheFunctionPickle,
+    experiment_cls: Type[ExperimentRunner] = ExperimentRunner,
+    cache_cls: Type[AbstractCacheFunction] | None = CacheFunctionPickle,
     cache_cls_kwargs: dict = None,
 ) -> list:
     '''
@@ -79,6 +87,7 @@ def run_experiments(
     methods: list[tuple[str, Callable, dict[str, ...]]], Models used for fit() and predict() in this experiment
     task_metadata: pd.DataFrame,OpenML task metadata
     ignore_cache: bool, whether to use cached results (if present)
+    experiment_cls: WIP
     cache_cls: WIP
     cache_cls_kwargs: WIP
 
@@ -125,19 +134,21 @@ def run_experiments(
                         task = OpenMLTaskWrapper.from_task_id(task_id=tid)
 
                 if task is not None:
-                    run_fun = lambda: experiment_cls(
-                        method_cls=method_cls,
-                        task=task,
-                        fold=fold,
-                        task_name=task_name,
-                        method=method,
-                        fit_args=method_kwargs,
-                    ).run()
-                    out = cacher.cache(fun=run_fun, ignore_cache=ignore_cache)
+                    out = cacher.cache(
+                        fun=experiment_cls.init_and_run,
+                        fun_kwargs=dict(
+                            method_cls=method_cls,
+                            task=task,
+                            fold=fold,
+                            task_name=task_name,
+                            method=method,
+                            fit_args=method_kwargs,
+                        ),
+                        ignore_cache=ignore_cache,
+                    )
                 else:
                     # load cache, no need to load task
-                    # TODO: Keep logging as in cacher.cache()
-                    out = cacher.load_cache()
+                    out = cacher.cache(fun=None, fun_kwargs=None, ignore_cache=ignore_cache)
                 result_lst.append(out)
 
     return result_lst

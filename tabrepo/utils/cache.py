@@ -25,14 +25,16 @@ T = TypeVar("T")
 #  Store kwargs, don't use lambda
 # TODO: Cache aux info such as date
 # TODO: Enable "only_cache", to enforce that no code execution occurs, and make `fun` optional
+# TODO: Docstring
 class AbstractCacheFunction(Generic[T]):
     _save_after_run = True
     _load_after_cache = True
 
-    # TODO: fun_kwargs as argument
     def cache(
         self,
-        fun: Callable[[], T],
+        fun: Callable[..., T] | None,
+        *,
+        fun_kwargs: dict | None = None,
         ignore_cache: bool = False,
     ) -> T:
         exists = self.exists
@@ -53,8 +55,8 @@ class AbstractCacheFunction(Generic[T]):
 
         if not run:
             return self.load_cache()
-        with catchtime("Evaluate function."):
-            data = self._run(fun=fun)
+        with catchtime("Evaluate function"):
+            data = self._run(fun=fun, fun_kwargs=fun_kwargs)
             if self._save_after_run:
                 self.save_cache(data=data)
         if self._save_after_run and self._load_after_cache:
@@ -62,9 +64,12 @@ class AbstractCacheFunction(Generic[T]):
         else:
             return data
 
-    def _run(self, fun: Callable[[], T]) -> T:
-        assert fun is not None
-        return fun()
+    def _run(self, fun: Callable[..., T], fun_kwargs: dict | None = None) -> T:
+        assert fun is not None, f"`fun` must not be None if a saving a new cache is required!"
+        if fun_kwargs is None:
+            fun_kwargs = {}
+        assert isinstance(fun_kwargs, dict)
+        return fun(**fun_kwargs)
 
     @property
     def exists(self) -> bool:
