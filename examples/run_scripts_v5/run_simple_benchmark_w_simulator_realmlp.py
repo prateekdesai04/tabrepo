@@ -8,15 +8,22 @@ from tabrepo.scripts_v5.AutoGluon_class import AGWrapper
 from tabrepo.scripts_v5.ag_models.realmlp_model import RealMLPModel
 
 
+# To re-use the pre-computed results if you have the file "tabrepo_artifacts_realmlp_20250201.zip":
+#  cd {this_dir}
+#  unzip tabrepo_artifacts_realmlp_20250201.zip
+# Note: This file is currently located in "s3://tabrepo/artifacts/methods/realmlp/tabrepo_artifacts_realmlp_20250201.zip"
+#  Not publicly available
+# You can regenerate this artifact from scratch by running the code. On a 192 CPU core machine, this will take approximately 25 hours.
+# If the artifact is present, it will be used and the models will not be re-run.
 if __name__ == '__main__':
     # Load Context
     context_name = "D244_F3_C1530_200"  # 200 smallest datasets. To run larger, set to "D244_F3_C1530_200"
     expname = "./initial_experiment_simple_simulator"  # folder location of all experiment artifacts
     ignore_cache = False  # set to True to overwrite existing caches and re-run experiments from scratch
 
+    # TODO: in future shouldn't require downloading all repo_og preds (100+ GB) before running experiments
+    #  Should only need preds for ensembling part, but not for comparisons
     repo_og: EvaluationRepository = EvaluationRepository.from_context(context_name, cache=True)
-
-    task_metadata = repo_og.task_metadata.copy(deep=True)
 
     # Sample for a quick demo
     # datasets = repo_og.datasets()[:3]
@@ -26,264 +33,10 @@ if __name__ == '__main__':
     datasets = repo_og.datasets()
     folds = repo_og.folds
 
+    # TODO: Why is RealMLP slow when running sequentially / not in a bag? Way slower than it should be. Torch threads?
     methods = [
-        # (
-        #     "RealMLP_c1_BAG_L1_Reproduced",
-        #     AGWrapper,
-        #     {
-        #         "fit_kwargs": {
-        #             "num_bag_folds": 8,
-        #             "num_bag_sets": 1,
-        #             "fit_weighted_ensemble": False,
-        #             "calibrate": False,
-        #             "verbosity": 2,
-        #             "hyperparameters": {
-        #                 RealMLPModel: {},
-        #             },
-        #         }
-        #     },
-        # ),
-        # (
-        #     "RealMLP_c1_BAG_L1",
-        #     AGWrapper,
-        #     {
-        #         "fit_kwargs": {
-        #             "num_bag_folds": 8,
-        #             "num_bag_sets": 1,
-        #             "fit_weighted_ensemble": False,
-        #             "calibrate": False,
-        #             "verbosity": 2,
-        #             "hyperparameters": {
-        #                 RealMLPModel: {},
-        #             },
-        #         }
-        #     },
-        # ),
-        # (
-        #     "RealMLP_c1_BAG_L1_v2",
-        #     AGWrapper,
-        #     {
-        #         "fit_kwargs": {
-        #             "num_bag_folds": 8,
-        #             "num_bag_sets": 1,
-        #             "fit_weighted_ensemble": False,
-        #             "calibrate": False,
-        #             "verbosity": 2,
-        #             "hyperparameters": {
-        #                 RealMLPModel: {},
-        #             },
-        #         }
-        #     },
-        # ),
-        # (
-        #     "RealMLP_c1_BAG_L1_v3_no_early_stop",
-        #     AGWrapper,
-        #     {
-        #         "fit_kwargs": {
-        #             "num_bag_folds": 8,
-        #             "num_bag_sets": 1,
-        #             "fit_weighted_ensemble": False,
-        #             "calibrate": False,
-        #             "verbosity": 2,
-        #             "hyperparameters": {
-        #                 RealMLPModel: {},
-        #             },
-        #         }
-        #     },
-        # ),
-        # (
-        #     "RealMLP_c1_BAG_L1_v3_no_early_stop_d1",
-        #     AGWrapper,
-        #     {
-        #         "fit_kwargs": {
-        #             "num_bag_folds": 8,
-        #             "num_bag_sets": 1,
-        #             "fit_weighted_ensemble": False,
-        #             "calibrate": False,
-        #             "verbosity": 2,
-        #             "hyperparameters": {
-        #                 RealMLPModel: {},
-        #             },
-        #         }
-        #     },
-        # ),
-        # (
-        #     "RealMLP_c1_BAG_L1_v3_no_early_stop_d2",
-        #     AGWrapper,
-        #     {
-        #         "fit_kwargs": {
-        #             "num_bag_folds": 8,
-        #             "num_bag_sets": 1,
-        #             "fit_weighted_ensemble": False,
-        #             "calibrate": False,
-        #             "verbosity": 2,
-        #             "hyperparameters": {
-        #                 RealMLPModel: {},
-        #             },
-        #         }
-        #     },
-        # ),
-        # (
-        #     "RealMLP_c1_BAG_L1_v3_no_early_stop_seq",
-        #     AGWrapper,
-        #     {
-        #         "fit_kwargs": {
-        #             "num_bag_folds": 8,
-        #             "num_bag_sets": 1,
-        #             "fit_weighted_ensemble": False,
-        #             "calibrate": False,
-        #             "verbosity": 2,
-        #             "hyperparameters": {
-        #                 RealMLPModel: {},
-        #             },
-        #         }
-        #     },
-        # ),
-        # (
-        #     "RealMLP_c1_BAG_L1_v3_early_stop_par_3_40_nopre",
-        #     AGWrapper,
-        #     {
-        #         "fit_kwargs": {
-        #             "num_bag_folds": 8,
-        #             "num_bag_sets": 1,
-        #             "fit_weighted_ensemble": False,
-        #             "calibrate": False,
-        #             "verbosity": 2,
-        #             "hyperparameters": {
-        #                 RealMLPModel: {},
-        #             },
-        #         }
-        #     },
-        # ),
-        # (
-        #     "RealMLP_c1_BAG_L1_v3_early_stop_par_3_40_nopre_rand1",
-        #     AGWrapper,
-        #     {
-        #         "fit_kwargs": {
-        #             "num_bag_folds": 8,
-        #             "num_bag_sets": 1,
-        #             "fit_weighted_ensemble": False,
-        #             "calibrate": False,
-        #             "verbosity": 2,
-        #             "hyperparameters": {
-        #                 RealMLPModel: {},
-        #             },
-        #         }
-        #     },
-        # ),
-        # (
-        #     "RealMLP_c1_BAG_L1_v3_early_stop_par_3_40_nopre_rand2",
-        #     AGWrapper,
-        #     {
-        #         "fit_kwargs": {
-        #             "num_bag_folds": 8,
-        #             "num_bag_sets": 1,
-        #             "fit_weighted_ensemble": False,
-        #             "calibrate": False,
-        #             "verbosity": 2,
-        #             "hyperparameters": {
-        #                 RealMLPModel: {},
-        #             },
-        #         }
-        #     },
-        # ),
-        # (
-        #     "RealMLP_c1_BAG_L1_v4_noes_rnone",
-        #     AGWrapper,
-        #     {
-        #         "fit_kwargs": {
-        #             "num_bag_folds": 8,
-        #             "num_bag_sets": 1,
-        #             "fit_weighted_ensemble": False,
-        #             "calibrate": False,
-        #             "verbosity": 2,
-        #             "hyperparameters": {
-        #                 RealMLPModel: {
-        #                     "random_state": None,
-        #                     "use_early_stopping": False,
-        #                 },
-        #             },
-        #         }
-        #     },
-        # ),
-        # (
-        #     "RealMLP_c1_BAG_L1_v4_noes_rnone1",
-        #     AGWrapper,
-        #     {
-        #         "fit_kwargs": {
-        #             "num_bag_folds": 8,
-        #             "num_bag_sets": 1,
-        #             "fit_weighted_ensemble": False,
-        #             "calibrate": False,
-        #             "verbosity": 2,
-        #             "hyperparameters": {
-        #                 RealMLPModel: {
-        #                     "random_state": None,
-        #                     "use_early_stopping": False,
-        #                 },
-        #             },
-        #         }
-        #     },
-        # ),
-        # (
-        #     "RealMLP_c1_BAG_L1_v4_noes_rnone2",
-        #     AGWrapper,
-        #     {
-        #         "fit_kwargs": {
-        #             "num_bag_folds": 8,
-        #             "num_bag_sets": 1,
-        #             "fit_weighted_ensemble": False,
-        #             "calibrate": False,
-        #             "verbosity": 2,
-        #             "hyperparameters": {
-        #                 RealMLPModel: {
-        #                     "random_state": None,
-        #                     "use_early_stopping": False,
-        #                 },
-        #             },
-        #         }
-        #     },
-        # ),
-        # (
-        #     "RealMLP_c1_BAG_L1_v4_noes_rnone3",
-        #     AGWrapper,
-        #     {
-        #         "fit_kwargs": {
-        #             "num_bag_folds": 8,
-        #             "num_bag_sets": 1,
-        #             "fit_weighted_ensemble": False,
-        #             "calibrate": False,
-        #             "verbosity": 2,
-        #             "hyperparameters": {
-        #                 RealMLPModel: {
-        #                     "random_state": None,
-        #                     "use_early_stopping": False,
-        #                 },
-        #             },
-        #         }
-        #     },
-        # ),
-        # (
-        #     "RealMLP_c1_BAG_L1_v4_noes_rnone4",
-        #     AGWrapper,
-        #     {
-        #         "fit_kwargs": {
-        #             "num_bag_folds": 8,
-        #             "num_bag_sets": 1,
-        #             "fit_weighted_ensemble": False,
-        #             "calibrate": False,
-        #             "verbosity": 2,
-        #             "hyperparameters": {
-        #                 RealMLPModel: {
-        #                     "random_state": None,
-        #                     "use_early_stopping": False,
-        #                 },
-        #             },
-        #         }
-        #     },
-        # ),
         (
-            "RealMLP_c1_BAG_L1_v4_noes_r0",
+            "RealMLP_c1_BAG_L1_v4_noes_r0",  # 2025/02/01 num_cpus=192
             AGWrapper,
             {
                 "fit_kwargs": {
@@ -301,46 +54,6 @@ if __name__ == '__main__':
                 }
             },
         ),
-        # (
-        #     "RealMLP_c1_BAG_L1_v4_noes_r1",
-        #     AGWrapper,
-        #     {
-        #         "fit_kwargs": {
-        #             "num_bag_folds": 8,
-        #             "num_bag_sets": 1,
-        #             "fit_weighted_ensemble": False,
-        #             "calibrate": False,
-        #             "verbosity": 2,
-        #             "hyperparameters": {
-        #                 RealMLPModel: {
-        #                     "random_state": 1,
-        #                     "use_early_stopping": False,
-        #                 },
-        #             },
-        #         }
-        #     },
-        # ),
-        # (
-        #     "RealMLP_c1_BAG_L1_v4_es_r0",
-        #     AGWrapper,
-        #     {
-        #         "fit_kwargs": {
-        #             "num_bag_folds": 8,
-        #             "num_bag_sets": 1,
-        #             "fit_weighted_ensemble": False,
-        #             "calibrate": False,
-        #             "verbosity": 2,
-        #             "hyperparameters": {
-        #                 RealMLPModel: {
-        #                     "random_state": 0,
-        #                     "use_early_stopping": True,
-        #                     "early_stopping_additive_patience": 40,
-        #                     "early_stopping_multiplicative_patience": 3,
-        #                 },
-        #             },
-        #         }
-        #     },
-        # ),
     ]
 
     tids = [repo_og.dataset_to_tid(dataset) for dataset in datasets]
@@ -355,6 +68,7 @@ if __name__ == '__main__':
         convert_time_infer_s_from_batch_to_sample=True,
     )
 
+    # TODO: repo.configs_type should not be None for custom methods
     repo.print_info()
 
     save_path = "repo_new"
@@ -378,29 +92,7 @@ if __name__ == '__main__':
     ]
 
     comparison_configs = comparison_configs_og + [
-        # "RealMLP_c1_BAG_L1_v4_noes_rnone",  # did 90 runs (30x3)
-        # "RealMLP_c1_BAG_L1_v4_noes_rnone1",
-        # "RealMLP_c1_BAG_L1_v4_noes_rnone2",
-        # "RealMLP_c1_BAG_L1_v4_noes_rnone3",
-        # "RealMLP_c1_BAG_L1_v4_noes_rnone4",
-
-        "RealMLP_c1_BAG_L1_v4_noes_r0",  # did 90 runs (30x3)
-        # "RealMLP_c1_BAG_L1_v4_noes_r1",  # did 90 runs (30x3)
-        # "RealMLP_c1_BAG_L1_v4_es_r0",  # did 90 runs (30x3)
-
-        # For some reason this one is really good, why?? This was an early run with random_state=None.
-        # I have no idea why it is so good on the 3 datasets. Maybe random luck?
-        # Ran sequentially with no n_threads specified. Took a long time (450s per task)
-        # "RealMLP_c1_BAG_L1_Reproduced",
-
-        # "RealMLP_c1_BAG_L1_v3_early_stop_par_3_40_nopre_rand1",
-        # "RealMLP_c1_BAG_L1_v3_early_stop_par_3_40_nopre_rand2",
-
-        # "RealMLP_c1_BAG_L1",
-        # "RealMLP_c1_BAG_L1_v2",
-        # "RealMLP_c1_BAG_L1_v3_no_early_stop",
-        # "RealMLP_c1_BAG_L1_v3_no_early_stop_d1",
-        # "RealMLP_c1_BAG_L1_v3_no_early_stop_d2",
+        "RealMLP_c1_BAG_L1_v4_noes_r0",  # did 600 runs (200x3)
     ]
 
     df_ensemble_results, df_ensemble_weights = repo_combined.evaluate_ensembles(configs=comparison_configs, ensemble_size=40)
@@ -416,15 +108,14 @@ if __name__ == '__main__':
         df_ensemble_results_og,
     ], ignore_index=True)
 
-    from tabrepo.plot.plot_ens_weights import create_heatmap
-    p = create_heatmap(df=df_ensemble_weights, figsize=(12, 100), include_mean=True)
-    p.savefig("test_fig_ens_weights_test")
-
     baselines = [
         "AutoGluon_bq_4h8c_2023_11_14",
     ]
 
     evaluator = Evaluator(repo=repo_combined)
+
+    p = evaluator.plot_ensemble_weights(df_ensemble_weights=df_ensemble_weights, figsize=(16, 60))
+    p.savefig("ensemble_weights_w_RealMLP_c1")
 
     metrics = evaluator.compare_metrics(
         results_df=results_df,
