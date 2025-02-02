@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from pathlib import Path
 
 import pandas as pd
@@ -145,3 +146,52 @@ class Evaluator:
         )
 
         return evaluator_output
+
+    # TODO: aggregate_config_family: bool
+    # TODO: sort rows by size? color by problem type?
+    def plot_ensemble_weights(
+        self,
+        df_ensemble_weights: pd.DataFrame,
+        aggregate_folds: bool = True,
+        sort_by_mean: bool = True,
+        include_mean: bool = True,
+        **kwargs,
+    ):
+        """
+
+        Parameters
+        ----------
+        df_ensemble_weights : pd.DataFrame
+            The 2nd output object of `repo.evaluate_ensembles(...)
+        aggregate_folds : bool, default True
+            If True, averages folds of datasets together into single rows representing a dataset.
+            If False, each fold of each dataset will be its own row.
+        sort_by_mean : bool, default True
+            If True, will sort columns by the mean value of the column.
+            If False, columns will remain in the original order.
+        include_mean : bool, default True
+            If True, will add a row at the bottom with label "mean" representing the mean of the config weights across all tasks.
+            NaN values are considered 0 for the purposes of calculating the mean.
+        **kwargs
+            Passed to the `create_heatmap` function
+
+        Returns
+        -------
+        plt
+
+        """
+        df_ensemble_weights = copy.deepcopy(df_ensemble_weights)
+        if aggregate_folds:
+            df_ensemble_weights = df_ensemble_weights.groupby(level='dataset').mean()
+        else:
+            index_new = list(df_ensemble_weights.index.to_flat_index())
+            index_new = [str(t[0]) + "_" + str(t[1]) for t in index_new]
+            df_ensemble_weights.index = index_new
+
+        if sort_by_mean:
+            s = df_ensemble_weights.sum()
+            df_ensemble_weights = df_ensemble_weights[s.sort_values(ascending=False).index]
+
+        from tabrepo.plot.plot_ens_weights import create_heatmap
+        p = create_heatmap(df=df_ensemble_weights, include_mean=include_mean, **kwargs)
+        return p
