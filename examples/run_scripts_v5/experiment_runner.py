@@ -49,6 +49,28 @@ class ExperimentRunner:
             self._cleanup()
         return out
 
+    @classmethod
+    def init_and_run(
+        cls,
+        method_cls,
+        task: OpenMLTaskWrapper,
+        fold: int,
+        task_name: str,
+        method: str,
+        fit_args: dict = None,
+        cleanup: bool = True,
+    ):
+        obj = cls(
+            method_cls=method_cls,
+            task=task,
+            fold=fold,
+            task_name=task_name,
+            method=method,
+            fit_args=fit_args,
+            cleanup=cleanup,
+        )
+        return obj.run()
+
     def _run(self):
         self.model = self.init_method()
         out = self.run_model_fit()
