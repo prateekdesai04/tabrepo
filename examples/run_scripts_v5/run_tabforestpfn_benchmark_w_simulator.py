@@ -300,7 +300,7 @@ if __name__ == '__main__':
         "flaml_4h8c_2023_11_14",
         "lightautoml_4h8c_2023_11_14",
         "autosklearn_4h8c_2023_11_14",
-        "AutoGluon_bq_mainline_4h8c_2024_10_25",
+        "AutoGluon_bq_4h8c_2024_10_25",
         "TabPFNv2_N32",
         "TabDPT",
         "TabDPT_CS10000",
@@ -334,7 +334,7 @@ if __name__ == '__main__':
             'AutoGluon 1.1 (4h8c)',
         ],
         "frameworks_rename": {
-            "AutoGluon_bq_mainline_4h8c_2024_10_25": "AutoGluon 1.1 (4h8c)",
+            "AutoGluon_bq_4h8c_2024_10_25": "AutoGluon 1.1 (4h8c)",
             "AutoGluon_bq_4h8c_2023_11_14": "AutoGluon 0.8 (4h8c)",
         },
         # "frameworks_compare_vs_all": ["TabPFNv2"],

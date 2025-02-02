@@ -45,4 +45,6 @@ def load_ag11_bq_baseline(datasets: list[str], folds: list[int], repo: AbstractR
         df_processed_ag12_2024 = pd.concat([df_processed_ag12_2024, fillna_rows], ignore_index=True)
     df_processed_ag12_2024 = df_processed_ag12_2024[baseline_df.columns]
 
+    df_processed_ag12_2024["framework"] = "AutoGluon_bq_4h8c_2024_10_25"
+
     return df_processed_ag12_2024
