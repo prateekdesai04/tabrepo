@@ -67,31 +67,14 @@ def launch_jobs(
     methods = [(method["name"], eval(method["wrapper_class"]), method["fit_kwargs"]) for method in methods_data["methods"]]
 
 
-    # combinations = [
-    #     {
-    #         "dataset": "Australian",
-    #         "fold": 0,
-    #     },
-    #     {
-    #         "dataset": "Australian",
-    #         "fold": 1,
-    #     },
-    #     {
-    #         "dataset": "blood-transfusion-service-center",
-    #         "fold": 0,
-    #     },
-    #     {
-    #         "dataset": "blood-transfusion-service-center",
-    #         "fold": 1,
-    #     },
-    # ]
-
-    for combination in combinations:
-        # Create a unique job name
-        # job_name = f"mlflow-job_{combination['dataset']}_fold_{combination['fold']}"
-        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        base_name = f"mlflow-{combination['dataset']}-f{combination['fold']}-{timestamp}"
-        job_name = sanitize_job_name(base_name)
+    for dataset in datasets:
+        for fold in folds:
+            for method in methods:
+                method_name, wrapper_class, fit_kwargs = method
+                # Create a unique job name
+                timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+                base_name = f"{dataset[:4]}-f{fold}-{method_name[:4]}-{timestamp}"
+                job_name = sanitize_job_name(base_name)
 
 
         if docker_image_uri in DOCKER_IMAGE_ALIASES:
@@ -105,12 +88,15 @@ def launch_jobs(
             else sagemaker.Session()
         )
 
-        # Update hyperparameters for this job
-        job_hyperparameters = hyperparameters.copy() if hyperparameters else {}
-        job_hyperparameters.update({
-            "dataset": combination["dataset"],
-            "fold": combination["fold"],    # Can be a 'str' as well, refer to Estimators in SM docs
-        })
+                # Update hyperparameters for this job
+                job_hyperparameters = hyperparameters.copy() if hyperparameters else {}
+                job_hyperparameters.update({
+                    "dataset": dataset,
+                    "fold": fold,   # NOTE: Can be a 'str' as well, refer to Estimators in SM docs
+                    "method_name": method_name,
+                    "wrapper_class": wrapper_class,
+                    "fit_kwargs": f"'{json.dumps(fit_kwargs)}'",
+                })
 
         # Create the estimator
         estimator = sagemaker.estimator.Estimator(

@@ -21,15 +21,8 @@ if __name__ == '__main__':
     expname = "./initial_experiment_simple_simulator"  # folder location of all experiment artifacts
     ignore_cache = False  # set to True to overwrite existing caches and re-run experiments from scratch
 
+    #TODO: Download the repo without pred-proba
     repo_og: EvaluationRepository = EvaluationRepository.from_context(context_name, cache=True)
-
-    # Sample for a quick demo
-    # datasets = ["Australian", "blood-transfusion-service-center"]
-    # folds = [0, 1]
-
-    # To run everything:
-    # datasets = repo_og.datasets()
-    # folds = repo_og.folds
 
     datasets = args.datasets
     if -1 in args.folds:
@@ -37,33 +30,21 @@ if __name__ == '__main__':
     else:
         folds = args.folds
 
-    # Load methods from YAML file
-    with open(args.methods, 'r') as file:
-        methods_data = yaml.safe_load(file)
+    # Parse fit_kwargs from JSON string
+    fit_kwargs = json.loads(args.fit_kwargs)
+    # Cannot change dictionary keys during iteration. Hence iterate over a copy of the keys.
+    for key in list(fit_kwargs['hyperparameters'].keys()):
+        # TODO: Will not work if model class is given as string - like GBM in AGWrapper
+        if key == "GBM":
+            fit_kwargs['hyperparameters'][key] = fit_kwargs['hyperparameters'].pop(key)
+        else:
+            fit_kwargs['hyperparameters'][eval(key)] = fit_kwargs['hyperparameters'].pop(key)
 
-    methods = [(method["name"], eval(method["wrapper_class"]), method["fit_kwargs"]) for method in methods_data["methods"]]
 
-    # methods = [
-    #     (
-    #         "RealMLP_c1_BAG_L1_v4_noes_r0", # Name of the method
-    #         AGWrapper,  # Wrapper class
-    #         {
-    #             "fit_kwargs": { # Fit kwargs: AutoGluon hyperparameters + custom model hyperparameters
-    #                 "num_bag_folds": 8,
-    #                 "num_bag_sets": 1,
-    #                 "fit_weighted_ensemble": False,
-    #                 "calibrate": False,
-    #                 "verbosity": 2,
-    #                 "hyperparameters": {
-    #                     RealMLPModel: { # Custom model class and its hyperparameters
-    #                         "random_state": 0,
-    #                         "use_early_stopping": False,
-    #                     },
-    #                 },
-    #             }
-    #         },
-    #     ),
-    # ]
+    methods = [(args.method_name, eval(args.wrapper_class), {'fit_kwargs': fit_kwargs})]
+
+    print(f"\nWrapper class: {args.wrapper_class}\n")
+    print(f"Fit kwargs: {fit_kwargs}\n")
 
     tids = [repo_og.dataset_to_tid(dataset) for dataset in datasets]
     repo: EvaluationRepository = ExperimentBatchRunner().generate_repo_from_experiments(
@@ -83,6 +64,7 @@ if __name__ == '__main__':
 
     print(f"New Configs   : {repo.configs()}")
 
+    # TODO: Remove as this is a post-aggregation step
     repo_combined = EvaluationRepositoryCollection(repos=[repo_og, repo], config_fallback="ExtraTrees_c1_BAG_L1")
     repo_combined = repo_combined.subset(datasets=repo.datasets(), folds=repo.folds)
 
