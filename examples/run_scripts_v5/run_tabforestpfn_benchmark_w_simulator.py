@@ -12,7 +12,7 @@ from autogluon.tabular.models.tabpfnmix.tabpfnmix_model import TabPFNMixModel
 from tabrepo.scripts_v5.ag_models.tabdpt_model import TabDPTModel
 from experiment_utils import run_experiments, convert_leaderboard_to_configs
 from experiment_runner import OOFExperimentRunner
-from tabrepo.utils.cache import SimulationExperiment
+from tabrepo.utils.cache import CacheFunctionPickle
 from tabrepo.repository.repo_utils import convert_time_infer_s_from_batch_to_sample, convert_time_infer_s_from_sample_to_batch
 
 from script_utils import load_ag11_bq_baseline
@@ -153,7 +153,7 @@ if __name__ == '__main__':
         folds=folds,
         methods=methods,
         experiment_cls=OOFExperimentRunner,
-        cache_cls=SimulationExperiment,
+        cache_cls=CacheFunctionPickle,
         task_metadata=repo.task_metadata,
         ignore_cache=ignore_cache,
     )
@@ -310,7 +310,11 @@ if __name__ == '__main__':
         "TabDPT_CS1024",
     ]
 
-    metrics = repo_combined.compare_metrics(
+    from tabrepo.evaluation.evaluator import Evaluator
+
+    evaluator = Evaluator(repo_combined)
+
+    metrics = evaluator.compare_metrics(
         # results_df,
         # results_df_2,
         datasets=datasets,
@@ -339,7 +343,7 @@ if __name__ == '__main__':
         },
         # "frameworks_compare_vs_all": ["TabPFNv2"],
     }
-    evaluator_output = repo_combined.plot_overall_rank_comparison(
+    evaluator_output = evaluator.plot_overall_rank_comparison(
         results_df=metrics,
         evaluator_kwargs=evaluator_kwargs,
         save_dir=expname,
