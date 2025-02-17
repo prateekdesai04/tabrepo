@@ -6,7 +6,7 @@ from tabrepo import load_repository, EvaluationRepository
 from tabrepo.scripts_v5.TabPFN_class import CustomTabPFN
 from tabrepo.scripts_v5.TabPFNv2_class import CustomTabPFNv2
 from tabrepo.scripts_v5.LGBM_class import CustomLGBM
-from experiment_utils import run_experiments, convert_leaderboard_to_configs
+from tabrepo.benchmark.experiment_utils import run_experiments, convert_leaderboard_to_configs
 
 if __name__ == '__main__':
     # Load Context

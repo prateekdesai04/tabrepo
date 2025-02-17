@@ -10,10 +10,10 @@ from tabrepo.scripts_v5.ag_models.ebm_model import ExplainableBoostingMachine
 from tabrepo.scripts_v5.ag_models.tabpfn_v2_model import TabPFNV2Model
 from autogluon.tabular.models.tabpfnmix.tabpfnmix_model import TabPFNMixModel
 from tabrepo.scripts_v5.ag_models.tabdpt_model import TabDPTModel
-from experiment_utils import run_experiments, convert_leaderboard_to_configs
-from experiment_runner import OOFExperimentRunner
+from tabrepo.benchmark.experiment_utils import run_experiments, convert_leaderboard_to_configs
+from tabrepo.benchmark.experiment_runner import OOFExperimentRunner
 from tabrepo.utils.cache import CacheFunctionPickle
-from tabrepo.repository.repo_utils import convert_time_infer_s_from_batch_to_sample, convert_time_infer_s_from_sample_to_batch
+from tabrepo.repository.repo_utils import convert_time_infer_s_from_batch_to_sample
 
 from script_utils import load_ag11_bq_baseline
 

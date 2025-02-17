@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from experiment_utils import ExperimentBatchRunner
+from tabrepo.benchmark.experiment_utils import ExperimentBatchRunner
 from tabrepo import EvaluationRepository, EvaluationRepositoryCollection, Evaluator
 from tabrepo.scripts_v5.AutoGluon_class import AGWrapper
 from tabrepo.scripts_v5.ag_models.realmlp_model import RealMLPModel
@@ -25,7 +25,6 @@ if __name__ == '__main__':
     #  Should only need preds for ensembling part, but not for comparisons
     repo_og: EvaluationRepository = EvaluationRepository.from_context(context_name, cache=True)
 
-    from run_compute_dtypes import get_feature_info
     # df_out = get_feature_info(repo_og)
     #
     # a = df_out[("int", ("bool",))]

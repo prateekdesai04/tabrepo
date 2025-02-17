@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from experiment_utils import ExperimentBatchRunner
+from tabrepo.benchmark.experiment_utils import ExperimentBatchRunner
 from tabrepo import EvaluationRepository, EvaluationRepositoryCollection, Evaluator
 from tabrepo.scripts_v5.AutoGluon_class import AGWrapper
 
