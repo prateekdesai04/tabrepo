@@ -1,5 +1,6 @@
 import pandas as pd
 
+from autogluon.common.utils.resource_utils import ResourceManager
 from autogluon.core.constants import BINARY, MULTICLASS, REGRESSION
 from autogluon.core.models import AbstractModel
 
@@ -10,14 +11,19 @@ class TabPFNV2LocalModel(AbstractModel):
         self._feature_generator = None
 
     def get_model_cls(self):
-        from tabpfn_client.estimator import TabPFNClassifier, TabPFNRegressor
+        from tabpfn import TabPFNClassifier, TabPFNRegressor
         if self.problem_type in ['binary', 'multiclass']:
             model_cls = TabPFNClassifier
         else:
             model_cls = TabPFNRegressor
         return model_cls
 
-    def _fit(self, X: pd.DataFrame, y: pd.Series, X_val: pd.DataFrame = None, y_val: pd.Series = None, **kwargs):
+    # FIXME: What is the minimal model artifact?
+    #  If zeroshot, maybe we don't save weights for each fold in bag and instead load from a single weights file?
+    # FIXME: Crashes during model download if bagging with parallel fit.
+    #  Consider adopting same download logic as TabPFNMix which doesn't crash during model download.
+    # FIXME: Maybe support child_oof somehow with using only one model and being smart about inference time?
+    def _fit(self, X: pd.DataFrame, y: pd.Series, X_val: pd.DataFrame = None, y_val: pd.Series = None, num_cpus=1, **kwargs):
         model_cls = self.get_model_cls()
 
         metric_map = {
@@ -34,9 +40,9 @@ class TabPFNV2LocalModel(AbstractModel):
 
         hyp = self._get_model_params()
         self.model = model_cls(
-            model="latest_tabpfn_hosted",
-            optimize_metric=eval_metric_tabpfn,
-            # n_estimators=32,
+            # optimize_metric=eval_metric_tabpfn,  # FIXME: How to specify? This existed in the client version
+            device="cpu",
+            n_jobs=num_cpus,
             **hyp,
         )
 
@@ -98,11 +104,18 @@ class TabPFNV2LocalModel(AbstractModel):
     @classmethod
     def _get_default_ag_args_ensemble(cls, **kwargs) -> dict:
         default_ag_args_ensemble = super()._get_default_ag_args_ensemble(**kwargs)
+        # FIXME: Will raise an exception if the model isn't downloaded
         extra_ag_args_ensemble = {
            "fold_fitting_strategy": "sequential_local",  # FIXME: Comment out after debugging for large speedup
         }
         default_ag_args_ensemble.update(extra_ag_args_ensemble)
         return default_ag_args_ensemble
+
+    def _get_default_resources(self) -> tuple[int, int]:
+        # logical=False is faster in training
+        num_cpus = ResourceManager.get_cpu_count_psutil(logical=False)
+        num_gpus = 0
+        return num_cpus, num_gpus
 
     def _ag_params(self) -> set:
         return {"max_classes"}
