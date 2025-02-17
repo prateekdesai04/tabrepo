@@ -11,10 +11,10 @@ from experiment_runner import ExperimentRunner, OOFExperimentRunner
 
 
 # TODO: Which save hierarchy?
-#  1. `expname/data/tasks/{tid}/{fold}/{method}/results.pkl`  <- Current implementation
-#  2. `expname/data/method/{method}/tasks/{tid}/{fold}/results.pkl`
-#  3. `expname/data/{tid}/{fold}/{method}/results.pkl`
-#  3. `expname/data/{method}/{tid}/{fold}/results.pkl`
+#  1. `{expname}/data/tasks/{tid}/{fold}/{method}/results.pkl`  <- Current implementation
+#  2. `{expname}/data/method/{method}/tasks/{tid}/{fold}/results.pkl`
+#  3. `{expname}/data/{tid}/{fold}/{method}/results.pkl`
+#  4. `{expname}/data/{method}/{tid}/{fold}/results.pkl`  <- Maybe better?
 # TODO: Inspect artifact folder to load all results without needing to specify them explicitly
 #  generate_repo_from_dir(expname)
 class ExperimentBatchRunner:
