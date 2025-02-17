@@ -195,3 +195,49 @@ class Evaluator:
         from tabrepo.plot.plot_ens_weights import create_heatmap
         p = create_heatmap(df=df_ensemble_weights, include_mean=include_mean, **kwargs)
         return p
+
+    # TODO: WIP
+    # TODO: Add a non-loo version
+    # TODO: Rename
+    # FIXME: Make it work with framework_types + max_models_per_type
+    def zeroshot_portfolio(
+        self,
+        configs: list[str] | None = None,
+        n_portfolios: int = 200,  # FIXME
+        engine: str = "ray",
+        rename_columns: bool = True,  # TODO: Align them automatically so this isn't needed
+    ) -> pd.DataFrame:
+        repo = self.repo
+
+        from scripts.baseline_comparison.baselines import zeroshot_results
+        from scripts.baseline_comparison.evaluate_utils import make_scorers
+
+        rank_scorer, normalized_scorer = make_scorers(repo)
+
+        if configs is None:
+            configs = repo.configs()
+
+        a = zeroshot_results(
+            repo=repo,
+            dataset_names=repo.datasets(),
+            n_portfolios=[n_portfolios],
+            rank_scorer=rank_scorer,
+            normalized_scorer=normalized_scorer,
+            n_eval_folds=repo.n_folds(),
+            configs=configs,
+            engine=engine,
+        )
+
+        df_zeroshot_portfolio = pd.DataFrame(a)
+
+        if rename_columns:
+            df_zeroshot_portfolio = df_zeroshot_portfolio.rename(columns={
+                "test_error": "metric_error",
+                "method": "framework",
+            })
+            datasets_info = repo.datasets_info()
+
+            df_zeroshot_portfolio["problem_type"] = df_zeroshot_portfolio["dataset"].map(datasets_info["problem_type"])
+            df_zeroshot_portfolio["metric"] = df_zeroshot_portfolio["dataset"].map(datasets_info["metric"])
+
+        return df_zeroshot_portfolio
