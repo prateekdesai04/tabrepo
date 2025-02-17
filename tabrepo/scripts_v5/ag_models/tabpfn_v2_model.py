@@ -2,7 +2,6 @@ import pandas as pd
 
 from autogluon.core.constants import BINARY, MULTICLASS, REGRESSION
 from autogluon.core.models import AbstractModel
-from autogluon.features.generators import LabelEncoderFeatureGenerator
 
 
 class TabPFNV2Model(AbstractModel):
