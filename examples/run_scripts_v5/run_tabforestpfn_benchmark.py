@@ -9,7 +9,7 @@ from tabrepo.scripts_v5.TabForestPFN_class import CustomTabForestPFN
 from tabrepo.scripts_v5.AutoGluon_class import AGWrapper
 from tabrepo.scripts_v5.LGBM_class import CustomLGBM
 from tabrepo.scripts_v5.ag_models.tabforestpfn_model import TabForestPFNModel
-from experiment_utils import run_experiments, convert_leaderboard_to_configs
+from tabrepo.benchmark.experiment_utils import run_experiments, convert_leaderboard_to_configs
 
 if __name__ == '__main__':
     # Load Context
