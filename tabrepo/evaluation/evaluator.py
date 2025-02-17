@@ -81,6 +81,98 @@ class Evaluator:
 
         return df
 
+    # TODO: Prototype, find a better way to do this
+    # TODO: Docstring
+    def compute_avg_config_prediction_delta(
+        self,
+        configs: list[str],
+        datasets: list[str] = None,
+        folds: list[int] = None,
+    ) -> tuple[pd.DataFrame, pd.DataFrame]:
+        """
+
+
+        Parameters
+        ----------
+        configs
+        datasets
+        folds
+
+        Returns
+        -------
+        delta_avg_abs_mean : pd.DataFrame
+            The per-task normalized mean of the absolute delta in cells between two configs' test predictions.
+            Maximum value is 1 (maximum disagreement), minimum value is 0 (identical configs).
+        delta_avg_std : pd.DataFrame
+            The per-task normalized mean of the standard deviation of the delta in cells between two configs' test predictions.
+            Maximum value is 1 (maximum disagreement), minimum value is 0 (identical configs).
+        """
+        if datasets is None:
+            datasets = self.repo.datasets()
+        if folds is None:
+            folds = self.repo.folds
+        import numpy as np
+        delta_comparison = {}
+        delta_std_comparison = {}
+        for dataset in datasets:
+            for fold in folds:
+                delta_comparison[(dataset, fold)] = {}
+                delta_std_comparison[(dataset, fold)] = {}
+                print(f"{dataset} | {fold}")
+                # TODO: Only load y_pred_test 1 time for each task+config
+                # TODO: don't need to do (x, y) and (y, x)
+                for compare_conf1 in configs:
+                    for compare_conf2 in configs:
+                        if compare_conf1 == compare_conf2:
+                            continue
+                        print(f"{compare_conf1} vs {compare_conf2}")
+                        y_pred_test1 = self.repo.predict_test(dataset=dataset, fold=fold, config=compare_conf1)
+                        y_pred_test2 = self.repo.predict_test(dataset=dataset, fold=fold, config=compare_conf2)
+                        delta = y_pred_test2 - y_pred_test1
+                        # print(delta)
+                        mean = np.mean(delta)
+                        abs_mean = np.mean(np.abs(delta))
+                        stddev = np.std(delta)
+                        print(f"\t{abs_mean:.3f}\t{stddev:.3f}")
+                        delta_comparison[(dataset, fold)][(compare_conf1, compare_conf2)] = abs_mean
+                        delta_std_comparison[(dataset, fold)][(compare_conf1, compare_conf2)] = stddev
+                # normalize
+                max_abs_mean = 0
+                max_std = 0
+                for k, v in delta_comparison[(dataset, fold)].items():
+                    max_abs_mean = max(max_abs_mean, v)
+                for k, v in delta_std_comparison[(dataset, fold)].items():
+                    max_std = max(max_std, v)
+                for k in delta_comparison[(dataset, fold)].keys():
+                    if max_abs_mean != 0:
+                        delta_comparison[(dataset, fold)][k] /= max_abs_mean
+                    if max_std != 0:
+                        delta_std_comparison[(dataset, fold)][k] /= max_std
+                # FIXME: FINISH
+
+        delta_avg_abs_mean = pd.DataFrame(delta_comparison).mean(axis=1).unstack().fillna(0)
+        delta_avg_std = pd.DataFrame(delta_std_comparison).mean(axis=1).unstack().fillna(0)
+
+        from sklearn.decomposition import PCA
+
+        pca = PCA(n_components=2)
+
+        pca.fit(delta_avg_abs_mean)
+        delta_avg_abs_mean_projection = pca.transform(delta_avg_abs_mean)
+
+        # FIXME: Make plotting optional
+        from matplotlib import pyplot as plt
+        fig, ax = plt.subplots(figsize=(10, 10))
+        # config_names = list(delta_avg_abs_mean.index)
+        delta_avg_abs_mean_projection = pd.DataFrame(delta_avg_abs_mean_projection, index=delta_avg_abs_mean.index)
+        for config in delta_avg_abs_mean_projection.index:
+            ax.scatter(delta_avg_abs_mean_projection.loc[config, 0], delta_avg_abs_mean_projection.loc[config, 1], label=config)
+        ax.legend()
+        ax.grid(True)
+        plt.savefig("pca_projection_test")
+
+        return delta_avg_abs_mean, delta_avg_std
+
     # TODO: Rename to something better?
     def plot_overall_rank_comparison(
         self,
