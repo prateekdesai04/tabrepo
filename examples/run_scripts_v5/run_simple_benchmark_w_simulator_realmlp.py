@@ -25,18 +25,36 @@ if __name__ == '__main__':
     #  Should only need preds for ensembling part, but not for comparisons
     repo_og: EvaluationRepository = EvaluationRepository.from_context(context_name, cache=True)
 
-    # Sample for a quick demo
-    # datasets = repo_og.datasets()[:3]
-    # folds = [0]
+    from run_compute_dtypes import get_feature_info
+    # df_out = get_feature_info(repo_og)
+    #
+    # a = df_out[("int", ("bool",))]
+    # print(a)
+    # b = a[a > 0]
+    # datasets_with_bool = list(b.index)
+    #
+    # # Sample for a quick demo
+    datasets = repo_og.datasets()
+    # datasets = repo_og.datasets(problem_type="regression")
+    # datasets_filter = repo_og.datasets(problem_type="binary") + repo_og.datasets(problem_type="multiclass")
+    # datasets = [d for d in datasets if d in datasets_filter] + repo_og.datasets(problem_type="regression")
+    # # datasets = datasets[:173]
+    # datasets_og = datasets
+    # datasets = [d for d in datasets_og if d in datasets_with_bool] + [d for d in datasets_og if d not in datasets_with_bool]
+
+    # datasets = repo_og.datasets(problem_type="regression")
+    # datasets = datasets[:6]  # FIXME: ImputeF crashes on GAMETES_Epistasis_2-Way_1000atts_0_4H_EDM-1_EDM-1_1 fold 0
+    folds = [0, 1, 2]
+    # datasets = ["Internet-Advertisements"]
 
     # To run everything:
-    datasets = repo_og.datasets()
-    folds = repo_og.folds
+    # datasets = repo_og.datasets()
+    # folds = repo_og.folds
 
     # TODO: Why is RealMLP slow when running sequentially / not in a bag? Way slower than it should be. Torch threads?
     methods = [
         (
-            "RealMLP_c1_BAG_L1_v4_noes_r0",  # 2025/02/01 num_cpus=192
+            "RealMLP_c1_BAG_L1_v4_noes_r0",  # 2025/02/01 num_cpus=192, pytabkit==1.1.3
             AGWrapper,
             {
                 "fit_kwargs": {
@@ -49,11 +67,359 @@ if __name__ == '__main__':
                         RealMLPModel: {
                             "random_state": 0,
                             "use_early_stopping": False,
+                            "use_ls": None,
                         },
                     },
                 }
             },
         ),
+        (
+            "RealMLP_c2_BAG_L1_AutoLS",  # 2025/02/01 num_cpus=192, pytabkit==1.1.3
+            AGWrapper,
+            {
+                "fit_kwargs": {
+                    "num_bag_folds": 8,
+                    "num_bag_sets": 1,
+                    "fit_weighted_ensemble": False,
+                    "calibrate": False,
+                    "verbosity": 2,
+                    "hyperparameters": {
+                        RealMLPModel: {
+                            "random_state": 0,
+                            "use_early_stopping": False,
+                            "use_ls": "auto",
+                        },
+                    },
+                }
+            },
+        ),
+        (
+            "RealMLP_c2_BAG_L1_AutoLS_AUCStop",  # 2025/02/01 num_cpus=192, pytabkit==1.1.3
+            AGWrapper,
+            {
+                "fit_kwargs": {
+                    "num_bag_folds": 8,
+                    "num_bag_sets": 1,
+                    "fit_weighted_ensemble": False,
+                    "calibrate": False,
+                    "verbosity": 2,
+                    "hyperparameters": {
+                        RealMLPModel: {
+                            "random_state": 0,
+                            "use_early_stopping": False,
+                            "use_ls": "auto",
+                            "use_roc_auc_to_stop": True,
+                        },
+                    },
+                }
+            },
+        ),
+        # (
+        #     "RealMLP_c2_BAG_L1_AutoLS_AUCStop_121",  # 2025/02/05 num_cpus=192, pytabkit==1.2.1
+        #     AGWrapper,
+        #     {
+        #         "fit_kwargs": {
+        #             "num_bag_folds": 8,
+        #             "num_bag_sets": 1,
+        #             "fit_weighted_ensemble": False,
+        #             "calibrate": False,
+        #             "verbosity": 2,
+        #             "hyperparameters": {
+        #                 RealMLPModel: {
+        #                     "random_state": 0,
+        #                     "use_early_stopping": False,
+        #                     "use_ls": "auto",
+        #                     "use_roc_auc_to_stop": True,
+        #                 },
+        #             },
+        #         }
+        #     },
+        # ),
+        # (
+        #     "RealMLP_c2_BAG_L1_AutoLS_AUCStop_121_bool_to_cat",  # 2025/02/05 num_cpus=192, pytabkit==1.2.1
+        #     AGWrapper,
+        #     {
+        #         "fit_kwargs": {
+        #             "num_bag_folds": 8,
+        #             "num_bag_sets": 1,
+        #             "fit_weighted_ensemble": False,
+        #             "calibrate": False,
+        #             "verbosity": 2,
+        #             "hyperparameters": {
+        #                 RealMLPModel: {
+        #                     "random_state": 0,
+        #                     "use_early_stopping": False,
+        #                     "use_ls": "auto",
+        #                     "use_roc_auc_to_stop": True,
+        #                     "bool_to_cat": True,
+        #                 },
+        #             },
+        #         }
+        #     },
+        # ),
+        # (
+        #     "RealMLP_c2_BAG_L1_AutoLS_AUCStop_121_bool_to_cat_false",  # 2025/02/05 num_cpus=192, pytabkit==1.2.1
+        #     AGWrapper,
+        #     {
+        #         "fit_kwargs": {
+        #             "num_bag_folds": 8,
+        #             "num_bag_sets": 1,
+        #             "fit_weighted_ensemble": False,
+        #             "calibrate": False,
+        #             "verbosity": 2,
+        #             "hyperparameters": {
+        #                 RealMLPModel: {
+        #                     "random_state": 0,
+        #                     "use_early_stopping": False,
+        #                     "use_ls": "auto",
+        #                     "use_roc_auc_to_stop": True,
+        #                     "bool_to_cat": False,
+        #                     "impute_bool": False,
+        #                 },
+        #             },
+        #         }
+        #     },
+        # ),
+
+        # (
+        #     "RealMLP_c2_BAG_L1_AutoLS_AUCStop_121_bool_to_cat2",  # 2025/02/05 num_cpus=192, pytabkit==1.2.1
+        #     AGWrapper,
+        #     {
+        #         "fit_kwargs": {
+        #             "num_bag_folds": 8,
+        #             "num_bag_sets": 1,
+        #             "fit_weighted_ensemble": False,
+        #             "calibrate": False,
+        #             "verbosity": 2,
+        #             "hyperparameters": {
+        #                 RealMLPModel: {
+        #                     "random_state": 0,
+        #                     "use_early_stopping": False,
+        #                     "use_ls": "auto",
+        #                     "use_roc_auc_to_stop": True,
+        #                     "bool_to_cat": True,
+        #                     "impute_bool": False,
+        #                 },
+        #             },
+        #         }
+        #     },
+        # ),
+        # (
+        #     "RealMLP_c2_BAG_L1_AutoLS_AUCStop_121_bool_to_cat_false2",  # 2025/02/05 num_cpus=192, pytabkit==1.2.1
+        #     AGWrapper,
+        #     {
+        #         "fit_kwargs": {
+        #             "num_bag_folds": 8,
+        #             "num_bag_sets": 1,
+        #             "fit_weighted_ensemble": False,
+        #             "calibrate": False,
+        #             "verbosity": 2,
+        #             "hyperparameters": {
+        #                 RealMLPModel: {
+        #                     "random_state": 0,
+        #                     "use_early_stopping": False,
+        #                     "use_ls": "auto",
+        #                     "use_roc_auc_to_stop": True,
+        #                     "bool_to_cat": False,
+        #                     "impute_bool": False,
+        #                 },
+        #             },
+        #         }
+        #     },
+        # ),
+        # (
+        #     "RealMLP_c2_BAG_L1_AutoLS_bool_to_cat",  # 2025/02/05 num_cpus=192, pytabkit==1.2.1
+        #     AGWrapper,
+        #     {
+        #         "fit_kwargs": {
+        #             "num_bag_folds": 8,
+        #             "num_bag_sets": 1,
+        #             "fit_weighted_ensemble": False,
+        #             "calibrate": False,
+        #             "verbosity": 2,
+        #             "hyperparameters": {
+        #                 RealMLPModel: {
+        #                     "random_state": 0,
+        #                     "use_early_stopping": False,
+        #                     "use_ls": "auto",
+        #                     "use_roc_auc_to_stop": False,
+        #                     "bool_to_cat": True,
+        #                     "impute_bool": False,
+        #                 },
+        #             },
+        #         }
+        #     },
+        # ),
+        # (
+        #     "RealMLP_c2_BAG_L1_AutoLS_impute_true",  # 2025/02/05 num_cpus=192, pytabkit==1.2.1
+        #     AGWrapper,
+        #     {
+        #         "fit_kwargs": {
+        #             "num_bag_folds": 8,
+        #             "num_bag_sets": 1,
+        #             "fit_weighted_ensemble": False,
+        #             "calibrate": False,
+        #             "verbosity": 2,
+        #             "hyperparameters": {
+        #                 RealMLPModel: {
+        #                     "random_state": 0,
+        #                     "use_early_stopping": False,
+        #                     "use_ls": "auto",
+        #                     "use_roc_auc_to_stop": False,
+        #                     "bool_to_cat": False,
+        #                     "impute_bool": True,
+        #                 },
+        #             },
+        #         }
+        #     },
+        # ),
+        # (
+        #     "RealMLP_c2_BAG_L1_AutoLS_bool_to_cat_impute_true",  # 2025/02/05 num_cpus=192, pytabkit==1.2.1
+        #     AGWrapper,
+        #     {
+        #         "fit_kwargs": {
+        #             "num_bag_folds": 8,
+        #             "num_bag_sets": 1,
+        #             "fit_weighted_ensemble": False,
+        #             "calibrate": False,
+        #             "verbosity": 2,
+        #             "hyperparameters": {
+        #                 RealMLPModel: {
+        #                     "random_state": 0,
+        #                     "use_early_stopping": False,
+        #                     "use_ls": "auto",
+        #                     "use_roc_auc_to_stop": False,
+        #                     "bool_to_cat": True,
+        #                     "impute_bool": True,
+        #                 },
+        #             },
+        #         }
+        #     },
+        # ),
+
+        # FIXME: Crashes on some datasets... Fixed by "RealMLP_c2_BAG_L1_AutoLS_AUCStop_boolcat_impF_naT"?
+        # (
+        #     "RealMLP_c2_BAG_L1_AutoLS_AUCStop_boolcat_imputeF",  # 2025/02/05 num_cpus=192, pytabkit==1.2.1
+        #     AGWrapper,
+        #     {
+        #         "fit_kwargs": {
+        #             "num_bag_folds": 8,
+        #             "num_bag_sets": 1,
+        #             "fit_weighted_ensemble": False,
+        #             "calibrate": False,
+        #             "verbosity": 2,
+        #             "hyperparameters": {
+        #                 RealMLPModel: {
+        #                     "random_state": 0,
+        #                     "use_early_stopping": False,
+        #                     "use_ls": "auto",
+        #                     "use_roc_auc_to_stop": True,
+        #                     "bool_to_cat": True,
+        #                     "impute_bool": False,
+        #                 },
+        #             },
+        #         }
+        #     },
+        # ),
+        #
+        # TODO: CRASHES? Same as above
+        # (
+        #     "RealMLP_c2_BAG_L1_AutoLS_AUCStop_boolcat_imputeT",  # 2025/02/05 num_cpus=192, pytabkit==1.2.1
+        #     AGWrapper,
+        #     {
+        #         "fit_kwargs": {
+        #             "num_bag_folds": 8,
+        #             "num_bag_sets": 1,
+        #             "fit_weighted_ensemble": False,
+        #             "calibrate": False,
+        #             "verbosity": 2,
+        #             "hyperparameters": {
+        #                 RealMLPModel: {
+        #                     "random_state": 0,
+        #                     "use_early_stopping": False,
+        #                     "use_ls": "auto",
+        #                     "use_roc_auc_to_stop": True,
+        #                     "bool_to_cat": True,
+        #                     "impute_bool": True,
+        #                 },
+        #             },
+        #         }
+        #     },
+        # ),
+        (
+            "RealMLP_c2_BAG_L1_AutoLS_AUCStop_boolcat_impF_naT",  # 2025/02/07 num_cpus=192, pytabkit==1.2.1
+            AGWrapper,
+            {
+                "fit_kwargs": {
+                    "num_bag_folds": 8,
+                    "num_bag_sets": 1,
+                    "fit_weighted_ensemble": False,
+                    "calibrate": False,
+                    "verbosity": 2,
+                    "hyperparameters": {
+                        RealMLPModel: {
+                            "random_state": 0,
+                            "use_early_stopping": False,
+                            "use_ls": "auto",
+                            "use_roc_auc_to_stop": True,
+                            "bool_to_cat": True,
+                            "impute_bool": False,
+                            "name_categories": True,
+                        },
+                    },
+                }
+            },
+        ),
+        # (
+        #     "RealMLP_c2_BAG_L1_AutoLS_AUCStop_impF_naT",  # 2025/02/07 num_cpus=192, pytabkit==1.2.1
+        #     AGWrapper,
+        #     {
+        #         "fit_kwargs": {
+        #             "num_bag_folds": 8,
+        #             "num_bag_sets": 1,
+        #             "fit_weighted_ensemble": False,
+        #             "calibrate": False,
+        #             "verbosity": 2,
+        #             "hyperparameters": {
+        #                 RealMLPModel: {
+        #                     "random_state": 0,
+        #                     "use_early_stopping": False,
+        #                     "use_ls": "auto",
+        #                     "use_roc_auc_to_stop": True,
+        #                     "bool_to_cat": False,
+        #                     "impute_bool": False,
+        #                     "name_categories": True,
+        #                 },
+        #             },
+        #         }
+        #     },
+        # ),
+        (
+            "RealMLP_c2_BAG_L1_TD",  # 2025/02/12 num_cpus=192, pytabkit==1.2.1
+            AGWrapper,
+            {
+                "fit_kwargs": {
+                    "num_bag_folds": 8,
+                    "num_bag_sets": 1,
+                    "fit_weighted_ensemble": False,
+                    "calibrate": False,
+                    "verbosity": 2,
+                    "hyperparameters": {
+                        RealMLPModel: {
+                            "random_state": 0,
+                            "use_early_stopping": False,
+                            "use_ls": "auto",
+                            "use_roc_auc_to_stop": True,
+                            "bool_to_cat": True,
+                            "impute_bool": False,
+                            "name_categories": True,
+                            "td_s_reg": False,
+                        },
+                    },
+                }
+            },
+        ),
+
     ]
 
     tids = [repo_og.dataset_to_tid(dataset) for dataset in datasets]
@@ -76,8 +442,15 @@ if __name__ == '__main__':
 
     print(f"New Configs   : {repo.configs()}")
 
+    shared_datasets = [d for d in repo.datasets(union=False) if d in repo_og.datasets()]
+
+    # repo_tabforestpfn = EvaluationRepository.from_dir(path="tabforestpfn_sim")
+    # shared_datasets = [d for d in shared_datasets if d in repo_tabforestpfn.datasets(union=False)]
+    # repo_combined = EvaluationRepositoryCollection(repos=[repo_og, repo, repo_tabforestpfn], config_fallback="ExtraTrees_c1_BAG_L1")
     repo_combined = EvaluationRepositoryCollection(repos=[repo_og, repo], config_fallback="ExtraTrees_c1_BAG_L1")
-    repo_combined = repo_combined.subset(datasets=repo.datasets(), folds=repo.folds)
+    repo_combined = repo_combined.subset(datasets=shared_datasets)
+    repo_combined.set_config_fallback("ExtraTrees_c1_BAG_L1")
+    evaluator = Evaluator(repo=repo_combined)
 
     repo_combined.print_info()
 
@@ -92,8 +465,52 @@ if __name__ == '__main__':
     ]
 
     comparison_configs = comparison_configs_og + [
-        "RealMLP_c1_BAG_L1_v4_noes_r0",  # did 600 runs (200x3)
+        # "RealMLP_c2_BAG_L1_AutoLS_AUCStop_121",
+        # "RealMLP_c2_BAG_L1_AutoLS_AUCStop_121_bool_to_cat",
+        # "RealMLP_c2_BAG_L1_AutoLS_AUCStop_121_bool_to_cat_false",
+
+        # "RealMLP_c2_BAG_L1_AutoLS_AUCStop_121_bool_to_cat2",
+        # "RealMLP_c2_BAG_L1_AutoLS_AUCStop_121_bool_to_cat_false2",
+        # "RealMLP_c2_BAG_L1_AutoLS_bool_to_cat",
+        # "RealMLP_c2_BAG_L1_AutoLS_impute_true",
+        # "RealMLP_c2_BAG_L1_AutoLS_bool_to_cat_impute_true",
+
+        # "RealMLP_c2_BAG_L1_AutoLS_AUCStop_boolcat_imputeT",  # FIXME: CRASHES?
+        # "RealMLP_c2_BAG_L1_AutoLS_AUCStop_boolcat_imputeF",  # FIXME: CRASHES?
+
+        # "RealMLP_c1_BAG_L1_v4_noes_r0",  # did 600 runs (200x3)
+        # "RealMLP_c2_BAG_L1_AutoLS",  # 200x3
+        # "RealMLP_c2_BAG_L1_AutoLS_AUCStop",  # 200x3
+        "RealMLP_c2_BAG_L1_AutoLS_AUCStop_boolcat_impF_naT",  # 200x3
+        # "RealMLP_c2_BAG_L1_AutoLS_AUCStop_impF_naT",  # 175x3
+        "RealMLP_c2_BAG_L1_TD",  # 200x3
     ]
+
+    evaluator.compute_avg_config_prediction_delta(configs=comparison_configs + ["EBM_BAG_L1", "TabPFNv2_N4_BAG_L1", "TabPFN_Mix7_600000_N4_E30_FIX_BAG_L1"])
+
+    # comparison_configs += [
+    #     "TabForestPFN_N4_E10_BAG_L1",
+    #     "TabForestPFN_N4_E30_BAG_L1",
+    #     "TabForestPFN_N4_E50_BAG_L1",
+    #     "TabForestPFN_N1_E10_S4_BAG_L1",
+    #     "TabPFN_Mix7_500000_N4_E30_BAG_L1",
+    #     "TabPFN_Mix7_600000_N4_E30_BAG_L1",
+    #     "TabPFN_Mix7_300000_N4_E30_BAG_L1",
+    #     "TabPFN_Mix7_600000_N4_E30_S4_BAG_L1",
+    #     "TabPFNv2_N4_BAG_L1",
+    #     "EBM_BAG_L1",
+    #     "TabPFN_Mix7_600000_N1_E0_BAG_L1",
+    #     "TabPFN_Mix7_600000_N4_E0_BAG_L1",
+    #     "LightGBM_c1_BAG_L1_V2",
+    #     "TabDPT_N1_E0_BAG_L1",
+    #     "TabRMix7_500000_N1_E0_BAG_L1",
+    #     "TabRMix7_500000_N4_E30_BAG_L1",
+    #     "TabPFN_Mix7_600000_N4_E30_FIX_BAG_L1",
+    #     "TabPFN_Mix7_600000_N4_E50_FIX_BAG_L1",
+    #     "TabPFN_Mix7_600000_N4_E30_FIX_BAG_L1_COMPARISON",
+    # ]
+
+
 
     df_ensemble_results, df_ensemble_weights = repo_combined.evaluate_ensembles(configs=comparison_configs, ensemble_size=40)
     df_ensemble_results = df_ensemble_results.reset_index()
@@ -103,16 +520,44 @@ if __name__ == '__main__':
     df_ensemble_results_og = df_ensemble_results_og.reset_index()
     df_ensemble_results_og["framework"] = "ensemble_og"
 
+    from script_utils import load_ag11_bq_baseline
+    df_processed_ag11_2024 = load_ag11_bq_baseline(datasets=repo_combined.datasets(), folds=repo_combined.folds, repo=repo_combined)
+
+    repo_og.set_config_fallback("ExtraTrees_c1_BAG_L1")
+    df_zeroshot_portfolio_og = evaluator.zeroshot_portfolio(configs=repo_og.configs())
+    df_zeroshot_portfolio_og["framework"] = "zeroshot_og"
+
+    df_zeroshot_portfolio_w_realmlp = evaluator.zeroshot_portfolio(configs=repo_combined.configs())
+    df_zeroshot_portfolio_w_realmlp["framework"] = "zeroshot_w_realmlp"
+
+    df_zeroshot_portfolio_w_realmlp_single = evaluator.zeroshot_portfolio(configs=repo_og.configs() + ["RealMLP_c2_BAG_L1_TD"])
+    df_zeroshot_portfolio_w_realmlp_single["framework"] = "zeroshot_w_realmlp_single"
+
+    df_zeroshot_portfolio_w_realmlp_2 = evaluator.zeroshot_portfolio(configs=repo_og.configs() + ["RealMLP_c2_BAG_L1_TD", "RealMLP_c2_BAG_L1_AutoLS_AUCStop_boolcat_impF_naT"])
+    df_zeroshot_portfolio_w_realmlp_2["framework"] = "zeroshot_w_realmlp_2"
+
+    df_zeroshot_portfolio_w_realmlp_n5 = evaluator.zeroshot_portfolio(configs=repo_combined.configs(), n_portfolios=10)
+    df_zeroshot_portfolio_w_realmlp_n5["framework"] = "zeroshot_w_realmlp_n10"
+
+    df_zeroshot_portfolio_n5 = evaluator.zeroshot_portfolio(configs=repo_og.configs(), n_portfolios=10)
+    df_zeroshot_portfolio_n5["framework"] = "zeroshot_og_n10"
+
     results_df = pd.concat([
         df_ensemble_results,
         df_ensemble_results_og,
+        df_processed_ag11_2024,
+        df_zeroshot_portfolio_og,
+        df_zeroshot_portfolio_w_realmlp,
+        df_zeroshot_portfolio_w_realmlp_single,
+        df_zeroshot_portfolio_w_realmlp_2,
+        df_zeroshot_portfolio_w_realmlp_n5,
+        df_zeroshot_portfolio_n5,
     ], ignore_index=True)
 
     baselines = [
         "AutoGluon_bq_4h8c_2023_11_14",
+        "AutoGluon_bq_4h8c_2024_10_25",
     ]
-
-    evaluator = Evaluator(repo=repo_combined)
 
     p = evaluator.plot_ensemble_weights(df_ensemble_weights=df_ensemble_weights, figsize=(16, 60))
     p.savefig("ensemble_weights_w_RealMLP_c1")
@@ -135,6 +580,9 @@ if __name__ == '__main__':
         save_dir=expname,
         evaluator_kwargs={
             "treat_folds_as_datasets": True,
-            "frameworks_compare_vs_all": ["RealMLP_c1_BAG_L1_v4_noes_r0"],
+            "frameworks_compare_vs_all": [
+                "RealMLP_c2_BAG_L1_TD",
+                "zeroshot_w_realmlp",
+            ],
         },
     )
