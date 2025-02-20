@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import datetime
+
 import pandas as pd
 
 from autogluon.core.data.label_cleaner import LabelCleaner, LabelCleanerDummy
@@ -81,6 +83,7 @@ class ExperimentRunner:
             y_pred_proba=out["probabilities"],
         )
         out = self.post_evaluate(out=out)
+        out["experiment_metadata"] = self.experiment_metadata()
         out = self.convert_to_output(out=out)
         return out
 
@@ -101,12 +104,32 @@ class ExperimentRunner:
         else:
             simulation_artifacts = None
         out["simulation_artifacts"] = simulation_artifacts
+        if hasattr(self.model, "get_metadata"):
+            out["method_metadata"] = self.model.get_metadata()
         return out
+
+    # TODO: Record wall clock time for experiment?
+    #  time_start / time_end
+    def experiment_metadata(self) -> dict:
+        metadata = {}
+        metadata["experiment_cls"] = self.__class__.__name__
+        metadata["method_cls"] = self.method_cls.__name__
+        utc_time = datetime.datetime.now(datetime.timezone.utc)
+        utc_time_string = utc_time.strftime('%Y-%m-%d %H:%M:%S')
+        utc_time_float = utc_time.timestamp()
+        metadata["time_str"] = utc_time_string
+        metadata["time_float"] = utc_time_float
+        return metadata
+
+    def model_info(self):
+        self.model.predictor.model_info(self.model.predictor.model_best)
 
     def convert_to_output(self, out):
         out.pop("predictions")
         out.pop("probabilities")
         out.pop("simulation_artifacts")
+        out.pop("experiment_metadata", None)
+        out.pop("method_metadata", None)
 
         df_results = pd.DataFrame([out])
         ordered_columns = ["dataset", "fold", "framework", "metric_error", "metric", "time_train_s"]
@@ -161,7 +184,13 @@ class OOFExperimentRunner(ExperimentRunner):
         return out
 
     def convert_to_output(self, out):
-        ignored_columns = ["predictions", "probabilities", "simulation_artifacts"]
+        ignored_columns = [
+            "predictions",
+            "probabilities",
+            "simulation_artifacts",
+            "experiment_metadata",
+            "method_metadata",
+        ]
         out_keys = list(out.keys())
 
         ordered_columns = ["dataset", "fold", "framework", "metric_error", "metric", "time_train_s"]

@@ -43,6 +43,8 @@ class ExperimentBatchRunner:
             ignore_cache=ignore_cache,
         )
 
+        configs_hyperparameters = self.get_configs_hyperparameters(results_lst=results_lst)
+
         results_baselines = [result["df_results"] for result in results_lst if result["simulation_artifacts"] is None]
         df_baselines = pd.concat(results_baselines, ignore_index=True) if results_baselines else None
 
@@ -60,9 +62,33 @@ class ExperimentBatchRunner:
             df_baselines=df_baselines,
             results_lst_simulation_artifacts=results_lst_simulation_artifacts,
             task_metadata=task_metadata,
+            configs_hyperparameters=configs_hyperparameters,
         )
 
         return repo
+
+    def get_configs_hyperparameters(self, results_lst: list[dict]) -> dict | None:
+        configs_hyperparameters = {}
+        for result in results_lst:
+            if "method_metadata" in result and "model_hyperparameters" in result["method_metadata"]:
+                method_name = result["framework"]
+                if method_name in configs_hyperparameters:
+                    continue
+                method_metadata = result["method_metadata"]
+                model_hyperparameters = method_metadata["model_hyperparameters"]
+                model_cls = method_metadata.get("model_cls", None)
+                model_type = method_metadata.get("model_type", None)
+                name_prefix = method_metadata.get("name_prefix", None)
+
+                configs_hyperparameters[method_name] = dict(
+                    model_cls=model_cls,
+                    model_type=model_type,
+                    name_prefix=name_prefix,
+                    hyperparameters=model_hyperparameters,
+                )
+        if not configs_hyperparameters:
+            configs_hyperparameters = None
+        return configs_hyperparameters
 
 
 # TODO: Prateek: Give a toggle for just fitting and saving the model, if not call predict as well

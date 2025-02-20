@@ -14,6 +14,9 @@ logger = logging.getLogger(__name__)
 
 # pip install pytabkit
 class RealMLPModel(AbstractModel):
+    ag_key = "REALMLP"
+    ag_name = "RealMLP"
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._imputer = None
