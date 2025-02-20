@@ -1,46 +1,69 @@
 from __future__ import annotations
 
-import pandas as pd
-from typing import Callable, List, Type
+from typing import Literal, Type
 
+import pandas as pd
 from autogluon_benchmark.tasks.task_wrapper import OpenMLTaskWrapper
+
 from tabrepo.repository.repo_utils import convert_time_infer_s_from_batch_to_sample as _convert_time_infer_s_from_batch_to_sample
 from tabrepo.utils.cache import AbstractCacheFunction, CacheFunctionPickle, CacheFunctionDummy
 from tabrepo import EvaluationRepository
 from tabrepo.benchmark.experiment_runner import ExperimentRunner, OOFExperimentRunner
+from tabrepo.benchmark.experiment_constructor import Experiment
 
 
-# TODO: Which save hierarchy?
-#  1. `{expname}/data/tasks/{tid}/{fold}/{method}/results.pkl`  <- Current implementation
-#  2. `{expname}/data/method/{method}/tasks/{tid}/{fold}/results.pkl`
-#  3. `{expname}/data/{tid}/{fold}/{method}/results.pkl`
-#  4. `{expname}/data/{method}/{tid}/{fold}/results.pkl`  <- Maybe better?
 # TODO: Inspect artifact folder to load all results without needing to specify them explicitly
 #  generate_repo_from_dir(expname)
 class ExperimentBatchRunner:
     def generate_repo_from_experiments(
         self,
         expname: str,
-        tids: List[int],
-        folds: List[int],
-        methods: list[tuple[str, Callable, dict[str, ...]]],
+        tids: list[int],
+        folds: list[int],
+        methods: list[Experiment],
         task_metadata: pd.DataFrame,
         ignore_cache: bool,
         experiment_cls: Type[OOFExperimentRunner] = OOFExperimentRunner,
         cache_cls: Type[AbstractCacheFunction] | None = CacheFunctionPickle,
         cache_cls_kwargs: dict = None,
+        cache_path_format: Literal["name_first", "task_first"] = "name_first",
         convert_time_infer_s_from_batch_to_sample: bool = False,
     ) -> EvaluationRepository:
+        """
+
+        Parameters
+        ----------
+        expname
+        tids
+        folds
+        methods
+        task_metadata
+        ignore_cache
+        experiment_cls
+        cache_cls
+        cache_cls_kwargs
+        cache_path_format: {"name_first", "task_first"}, default "name_first"
+            Determines the folder structure for artifacts.
+            "name_first" -> {expname}/data/{method}/{tid}/{fold}/
+            "task_first" -> {expname}/data/tasks/{tid}/{fold}/{method}/
+        convert_time_infer_s_from_batch_to_sample
+
+        Returns
+        -------
+        EvaluationRepository
+
+        """
         results_lst = run_experiments(
             expname=expname,
             tids=tids,
             folds=folds,
             methods=methods,
             experiment_cls=experiment_cls,
-            cache_cls=cache_cls,
-            cache_cls_kwargs=cache_cls_kwargs,
             task_metadata=task_metadata,
             ignore_cache=ignore_cache,
+            cache_cls=cache_cls,
+            cache_cls_kwargs=cache_cls_kwargs,
+            cache_path_format=cache_path_format,
         )
 
         configs_hyperparameters = self.get_configs_hyperparameters(results_lst=results_lst)
@@ -91,40 +114,56 @@ class ExperimentBatchRunner:
         return configs_hyperparameters
 
 
-# TODO: Prateek: Give a toggle for just fitting and saving the model, if not call predict as well
 def run_experiments(
     expname: str,
-    tids: List[int],
-    folds: List[int],
-    methods: list[tuple[str, Callable, dict[str, ...]]],
+    tids: list[int],
+    folds: list[int],
+    methods: list[Experiment],
     task_metadata: pd.DataFrame,
     ignore_cache: bool,
     experiment_cls: Type[ExperimentRunner] = ExperimentRunner,
     cache_cls: Type[AbstractCacheFunction] | None = CacheFunctionPickle,
     cache_cls_kwargs: dict = None,
-) -> list:
-    '''
+    cache_path_format: Literal["name_first", "task_first"] = "name_first",
+) -> list[dict]:
+    """
 
     Parameters
     ----------
     expname: str, Name of the experiment given by the user
     tids: list[int], List of OpenML task IDs given by the user
     folds: list[int], Number of folds present for the given task
-    methods: list[tuple[str, Callable, dict[str, ...]]], Models used for fit() and predict() in this experiment
-    task_metadata: pd.DataFrame,OpenML task metadata
+    methods: list[Experiment], Models used for fit() and predict() in this experiment
+    task_metadata: pd.DataFrame, OpenML task metadata
     ignore_cache: bool, whether to use cached results (if present)
     experiment_cls: WIP
     cache_cls: WIP
     cache_cls_kwargs: WIP
+    cache_path_format: {"name_first", "task_first"}, default "name_first"
 
     Returns
     -------
-    result_lst: list, containing all metrics from fit() and predict() of all the given OpenML tasks
-    '''
+    result_lst: list[dict], containing all metrics from fit() and predict() of all the given OpenML tasks
+    """
     if cache_cls is None:
         cache_cls = CacheFunctionDummy
     if cache_cls_kwargs is None:
         cache_cls_kwargs = {}
+
+    methods_og = methods
+    methods = []
+    for method in methods_og:
+        # TODO: remove tuple input option, doing it to keep old scripts working
+        if not isinstance(method, Experiment):
+            method = Experiment(name=method[0], method_cls=method[1], method_kwargs=method[2])
+        methods.append(method)
+
+    unique_names = set()
+    for method in methods:
+        if method.name in unique_names:
+            raise AssertionError(f"Duplicate experiment name found. All names must be unique. name: {method.name}")
+        unique_names.add(method.name)
+
     # FIXME: dataset or name? Where does `dataset` come from, why can it be different from `name`?
     #  Using dataset for now because for some datasets like "GAMETES", the name is slightly different with `.` in `name` being replaced with `_` in `dataset`.
     #  This is probably because `.` isn't a valid name in a file in s3.
@@ -138,7 +177,7 @@ def run_experiments(
         f"\n\tTIDs    : {tids}"
         f"\n\tDatasets: {dataset_names}"
         f"\n\tFolds   : {folds}"
-        f"\n\tMethods : {methods}"
+        f"\n\tMethods : {[method.name for method in methods]}"
     )
     result_lst = []
     num_datasets = len(tids)
@@ -147,10 +186,16 @@ def run_experiments(
         task_name = task_metadata[task_metadata["tid"] == tid][dataset_name_column].iloc[0]
         print(f"Starting Dataset {i+1}/{num_datasets}...")
         for fold in folds:
-            for method, method_cls, method_kwargs in methods:
-                cache_name = f"data/tasks/{tid}/{fold}/{method}/results"
+            for method in methods:
+                if cache_path_format == "name_first":
+                    cache_name = f"data/{method.name}/{tid}/{fold}/results"
+                elif cache_path_format == "task_first":
+                    # Legacy format from early prototyping
+                    cache_name = f"data/tasks/{tid}/{fold}/{method.name}/results"
+                else:
+                    raise ValueError(f"Invalid cache_path_format: {cache_path_format}")
                 print(
-                    f"\tFitting {task_name} on fold {fold} for method {method}"
+                    f"\tFitting {task_name} on fold {fold} for method {method.name}"
                 )
 
                 cacher = cache_cls(cache_name=cache_name, cache_path=expname, **cache_cls_kwargs)
@@ -159,25 +204,46 @@ def run_experiments(
                     if ignore_cache or not cacher.exists:
                         task = OpenMLTaskWrapper.from_task_id(task_id=tid)
 
-                if task is not None:
-                    out = cacher.cache(
-                        fun=experiment_cls.init_and_run,
-                        fun_kwargs=dict(
-                            method_cls=method_cls,
-                            task=task,
-                            fold=fold,
-                            task_name=task_name,
-                            method=method,
-                            fit_args=method_kwargs,
-                        ),
-                        ignore_cache=ignore_cache,
-                    )
-                else:
-                    # load cache, no need to load task
-                    out = cacher.cache(fun=None, fun_kwargs=None, ignore_cache=ignore_cache)
+                out = run_experiment(
+                    method=method,
+                    task=task,
+                    fold=fold,
+                    task_name=task_name,
+                    experiment_cls=experiment_cls,
+                    cacher=cacher,
+                    ignore_cache=ignore_cache,
+                )
                 result_lst.append(out)
 
     return result_lst
+
+
+def run_experiment(
+    method: Experiment,
+    task: OpenMLTaskWrapper,
+    fold: int,
+    task_name: str,
+    experiment_cls: Type[ExperimentRunner],
+    cacher: AbstractCacheFunction,
+    ignore_cache: bool = False,
+):
+    if task is not None:
+        out = cacher.cache(
+            fun=experiment_cls.init_and_run,
+            fun_kwargs=dict(
+                method_cls=method.method_cls,
+                task=task,
+                fold=fold,
+                task_name=task_name,
+                method=method.name,
+                fit_args=method.method_kwargs,
+            ),
+            ignore_cache=ignore_cache,
+        )
+    else:
+        # load cache, no need to load task
+        out = cacher.cache(fun=None, fun_kwargs=None, ignore_cache=ignore_cache)
+    return out
 
 
 def convert_leaderboard_to_configs(leaderboard: pd.DataFrame, minimal: bool = True) -> pd.DataFrame:
