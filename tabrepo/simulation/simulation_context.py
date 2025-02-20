@@ -272,7 +272,7 @@ class ZeroshotSimulatorContext:
             configs_hyperparameters = copy.deepcopy(configs_hyperparameters)
             unique_configs = sorted(list(df_configs["framework"].unique()))
             # TODO: Avoid needing to do configs_base, make the names match to begin with
-            configs_base = set([cls._config_name_to_config_base(config) for config in unique_configs])
+            configs_base = set([cls._config_name_to_config_base(config) for config in unique_configs] + unique_configs)
             configs_hyperparameters_keys = list(configs_hyperparameters.keys())
             for c in configs_hyperparameters_keys:
                 if c not in configs_base:
@@ -598,10 +598,13 @@ class ZeroshotSimulatorContext:
             raise ValueError(f"User-specified config does not exist: '{config}'")
         if self.configs_hyperparameters is None:
             return None
-        # FIXME: (TabRepo v2) Hardcoding _BAG name, avoid this
-        config_base = self._config_name_to_config_base(config=config)
-        if config_base not in self.configs_hyperparameters:
-            return None
+        if config in self.configs_hyperparameters:
+            config_base = config
+        else:
+            # FIXME: (TabRepo v2) Hardcoding _BAG name, avoid this
+            config_base = self._config_name_to_config_base(config=config)
+            if config_base not in self.configs_hyperparameters:
+                return None
         config_hyperparameters = self.configs_hyperparameters[config_base]
         if not include_ag_args:
             config_hyperparameters = copy.deepcopy(config_hyperparameters)

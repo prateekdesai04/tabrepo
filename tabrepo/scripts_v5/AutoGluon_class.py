@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import copy
 import shutil
+from typing import Type
 
 import pandas as pd
 
@@ -10,7 +12,14 @@ from .abstract_class import AbstractExecModel
 class AGWrapper(AbstractExecModel):
     can_get_oof = True
 
-    def __init__(self, init_kwargs=None, fit_kwargs=None, preprocess_data=False, preprocess_label=False, **kwargs):
+    def __init__(
+        self,
+        init_kwargs: dict | None = None,
+        fit_kwargs: dict | None = None,
+        preprocess_data: bool = False,
+        preprocess_label: bool = False,
+        **kwargs,
+    ):
         super().__init__(preprocess_data=preprocess_data, preprocess_label=preprocess_label, **kwargs)
         if init_kwargs is None:
             init_kwargs = {}
@@ -60,3 +69,99 @@ class AGWrapper(AbstractExecModel):
 
     def cleanup(self):
         shutil.rmtree(self.predictor.path, ignore_errors=True)
+
+
+class AGSingleWrapper(AGWrapper):
+    """
+    Wrapper for a single model being fit in AutoGluon
+
+    Parameters
+    ----------
+    model_cls: str | Type["AbstractModel"]
+        The model_cls normally used for the model family in `predictor.fit(..., hyperparameters={model_cls: model_hyperparameters})
+    model_hyperparameters
+        The model_hyperparameters normally used in `predictor.fit(..., hyperparameters={model_cls: model_hyperparameters})
+    calibrate : bool | str, default False
+    init_kwargs
+    fit_kwargs
+    preprocess_data
+    preprocess_label
+    kwargs
+
+    """
+    def __init__(
+        self,
+        model_cls: str | Type["AbstractModel"],
+        model_hyperparameters: dict,
+        calibrate: bool | str = False,
+        init_kwargs: dict | None = None,
+        fit_kwargs: dict | None = None,
+        preprocess_data: bool = False,
+        preprocess_label: bool = False,
+        **kwargs,
+    ):
+        from autogluon.tabular.models import AbstractModel
+        assert (isinstance(model_cls, str) or issubclass(model_cls, AbstractModel))
+        assert isinstance(model_hyperparameters, dict)
+
+        if fit_kwargs is None:
+            fit_kwargs = {}
+        if init_kwargs is None:
+            init_kwargs = {}
+
+        assert "hyperparameters" not in fit_kwargs, f"Must not specify `hyperparameters` in AGSingleWrapper."
+        assert "num_stack_levels" not in fit_kwargs, f"num_stack_levels is not allowed for `AGSingleWrapper"
+        assert "presets" not in fit_kwargs, f"AGSingleWrapper does not support `presets`"
+        assert "fit_weighted_ensemble" not in fit_kwargs, f"Must not specify `fit_weighted_ensemble` in AGSingleWrapper... It is always set to False."
+        assert "calibrate" not in fit_kwargs, f"Specify calibrate directly rather than in `fit_kwargs`"
+        assert "ag_args_fit" not in fit_kwargs, f"ag_args_fit must be specified in `model_hyperparameters`, not in `fit_kwargs` for `AGSingleWrapper"
+        assert "ag_args_ensemble" not in fit_kwargs, f"ag_args_ensemble must be specified in `model_hyperparameters`, not in `fit_kwargs` for `AGSingleWrapper"
+
+        self.init_kwargs_extra = init_kwargs
+
+        fit_kwargs = copy.deepcopy(fit_kwargs)
+        fit_kwargs["calibrate"] = calibrate
+
+        self.fit_kwargs_extra = fit_kwargs
+        fit_kwargs = copy.deepcopy(fit_kwargs)
+        fit_kwargs["fit_weighted_ensemble"] = False
+        fit_kwargs["hyperparameters"] = {model_cls: model_hyperparameters}
+
+        self._model_cls = model_cls
+        self.model_hyperparameters = model_hyperparameters
+
+        super().__init__(init_kwargs=init_kwargs, fit_kwargs=fit_kwargs, preprocess_data=preprocess_data, preprocess_label=preprocess_label, **kwargs)
+
+    def get_hyperparameters(self):
+        hyperparameters = self.predictor.model_hyperparameters(model=self.predictor.model_best, output_format="user")
+        return hyperparameters
+
+    @property
+    def model_cls(self) -> Type["AbstractModel"]:
+        if not isinstance(self._model_cls, str):
+            model_cls = self._model_cls
+        else:
+            # TODO: Get it from predictor instead? What if we allow passing custom model register?
+            from autogluon.tabular.register import ag_model_register  # If this raises an exception, you need to update to latest mainline AutoGluon
+            model_cls = ag_model_register.key_to_cls(key=self._model_cls)
+        return model_cls
+
+    def get_metadata(self) -> dict:
+        metadata = {}
+
+        model = self.predictor._trainer.load_model(self.predictor.model_best)
+        metadata["info"] = model.get_info(include_feature_metadata=False)
+        metadata["hyperparameters"] = self.get_hyperparameters()
+        metadata["model_cls"] = self.model_cls.__name__
+        metadata["model_type"] = self.model_cls.ag_key  # TODO: rename to ag_key?
+        metadata["name_prefix"] = self.model_cls.ag_name  # TODO: rename to ag_name?
+        metadata["model_hyperparameters"] = self.model_hyperparameters
+        metadata["init_kwargs_extra"] = self.init_kwargs_extra
+        metadata["fit_kwargs_extra"] = self.fit_kwargs_extra
+        metadata["disk_usage"] = model.disk_usage()
+        metadata["num_cpus"] = model.fit_num_cpus
+        metadata["num_gpus"] = model.fit_num_gpus
+        metadata["num_cpus_child"] = model.fit_num_cpus_child
+        metadata["num_gpus_child"] = model.fit_num_gpus_child
+        metadata["fit_metadata"] = model.get_fit_metadata()
+        return metadata
