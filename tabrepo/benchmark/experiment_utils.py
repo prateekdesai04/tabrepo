@@ -131,7 +131,6 @@ def run_experiments(
     methods: list[Experiment], Models used for fit() and predict() in this experiment
     task_metadata: pd.DataFrame, OpenML task metadata
     ignore_cache: bool, whether to use cached results (if present)
-    experiment_cls: WIP
     cache_cls: WIP
     cache_cls_kwargs: WIP
     cache_path_format: {"name_first", "task_first"}, default "name_first"
@@ -199,8 +198,7 @@ def run_experiments(
                     if ignore_cache or not cacher.exists:
                         task = OpenMLTaskWrapper.from_task_id(task_id=tid)
 
-                out = run_experiment(
-                    method=method,
+                out = method.run(
                     task=task,
                     fold=fold,
                     task_name=task_name,
@@ -210,33 +208,6 @@ def run_experiments(
                 result_lst.append(out)
 
     return result_lst
-
-
-def run_experiment(
-    method: Experiment,
-    task: OpenMLTaskWrapper,
-    fold: int,
-    task_name: str,
-    cacher: AbstractCacheFunction,
-    ignore_cache: bool = False,
-):
-    if task is not None:
-        out = cacher.cache(
-            fun=method.experiment_cls.init_and_run,
-            fun_kwargs=dict(
-                method_cls=method.method_cls,
-                task=task,
-                fold=fold,
-                task_name=task_name,
-                method=method.name,
-                fit_args=method.method_kwargs,
-            ),
-            ignore_cache=ignore_cache,
-        )
-    else:
-        # load cache, no need to load task
-        out = cacher.cache(fun=None, fun_kwargs=None, ignore_cache=ignore_cache)
-    return out
 
 
 def convert_leaderboard_to_configs(leaderboard: pd.DataFrame, minimal: bool = True) -> pd.DataFrame:

@@ -7,6 +7,8 @@ from autogluon.core.models import AbstractModel
 from tabrepo.scripts_v5.abstract_class import AbstractExecModel
 from tabrepo.scripts_v5.AutoGluon_class import AGSingleWrapper
 from tabrepo.benchmark.experiment_runner import ExperimentRunner, OOFExperimentRunner
+from tabrepo.utils.cache import AbstractCacheFunction, CacheFunctionDummy
+from autogluon_benchmark.tasks.task_wrapper import OpenMLTaskWrapper
 
 
 class Experiment:
@@ -38,6 +40,34 @@ class Experiment:
             eval_metric=eval_metric,
             **self.method_kwargs,
         )
+
+    def run(
+        self,
+        task: OpenMLTaskWrapper | None,
+        fold: int,
+        task_name: str,
+        cacher: AbstractCacheFunction | None = None,
+        ignore_cache: bool = False,
+    ) -> object:
+        if cacher is None:
+            cacher = CacheFunctionDummy()
+        if task is not None:
+            out = cacher.cache(
+                fun=self.experiment_cls.init_and_run,
+                fun_kwargs=dict(
+                    method_cls=self.method_cls,
+                    task=task,
+                    fold=fold,
+                    task_name=task_name,
+                    method=self.name,
+                    fit_args=self.method_kwargs,
+                ),
+                ignore_cache=ignore_cache,
+            )
+        else:
+            # load cache, no need to load task
+            out = cacher.cache(fun=None, fun_kwargs=None, ignore_cache=ignore_cache)
+        return out
 
 
 # convenience wrapper
