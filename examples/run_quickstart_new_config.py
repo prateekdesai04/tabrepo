@@ -5,8 +5,9 @@ import os
 import pandas as pd
 
 from tabrepo import EvaluationRepository, EvaluationRepositoryCollection, Evaluator
-from tabrepo.benchmark.experiment_constructor import AGModelExperiment
+from tabrepo.benchmark.experiment_constructor import AGModelExperiment, Experiment
 from tabrepo.benchmark.experiment_utils import ExperimentBatchRunner
+from tabrepo.scripts_v5.LGBM_class import CustomLGBM
 
 
 if __name__ == '__main__':
@@ -32,6 +33,7 @@ if __name__ == '__main__':
 
     # This list of methods will be fit sequentially on each task (dataset x fold)
     methods = [
+        # This will be a `config` in EvaluationRepository, because it computes out-of-fold predictions and thus can be used for post-hoc ensemble.
         AGModelExperiment(  # Wrapper for fitting a single model via AutoGluon
             # The name you want the config to have
             name="LightGBM_c1_BAG_L1_Reproduced",
@@ -39,7 +41,7 @@ if __name__ == '__main__':
             # The class of the model. Can also be a string if AutoGluon recognizes it, such as `"GBM"`
             # Supports any model that inherits from `autogluon.core.models.AbstractModel`
             model_cls=LGBModel,  # model_cls="GBM",  <- identical
-            model_hyperparameters={},  # The non-default model hyperparameters.
+            model_hyperparameters={"num_boost_round": 10},  # The non-default model hyperparameters.
             fit_kwargs={"num_bag_folds": 8},  # num_bag_folds=8 was used in the TabRepo 2024 paper
         ),
         AGModelExperiment(
@@ -48,6 +50,17 @@ if __name__ == '__main__':
             model_hyperparameters={},
             fit_kwargs={"num_bag_folds": 8},
         ),
+
+        # This will be a `baseline` in EvaluationRepository, because it doesn't compute out-of-fold predictions and thus can't be used for post-hoc ensemble.
+        Experiment(  # Generic wrapper for any model, including non-AutoGluon models
+            name="LightGBM_Custom",
+
+            # method_cls must inherit from `AbstractExecModel`
+            # Simple LightGBM implementation that trains with 100% of the data without splitting for validation, and doesn't early stop.
+            # Does not bag. There is an attribute `can_get_oof` set to False.
+            method_cls=CustomLGBM,
+            method_kwargs={},
+        )
     ]
 
     tids = [repo_og.dataset_to_tid(dataset) for dataset in datasets]
@@ -66,7 +79,9 @@ if __name__ == '__main__':
     save_path = "repo_quickstart_new_config"
     repo.to_dir(path=save_path)  # Load the repo later via `EvaluationRepository.from_dir(save_path)`
 
+    new_baselines = repo.baselines()
     new_configs = repo.configs()
+    print(f"New Baselines : {new_baselines}")
     print(f"New Configs   : {new_configs}")
     print(f"New Configs Hyperparameters: {repo.configs_hyperparameters()}")
 
@@ -98,6 +113,7 @@ if __name__ == '__main__':
         "flaml_4h8c_2023_11_14",
         "lightautoml_4h8c_2023_11_14",
     ]
+    baselines += new_baselines
 
     # create an evaluator to compute comparison metrics such as win-rate and ELO
     evaluator = Evaluator(repo=repo_combined)
