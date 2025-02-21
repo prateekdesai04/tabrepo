@@ -8,7 +8,6 @@ from autogluon_benchmark.tasks.task_wrapper import OpenMLTaskWrapper
 from tabrepo.repository.repo_utils import convert_time_infer_s_from_batch_to_sample as _convert_time_infer_s_from_batch_to_sample
 from tabrepo.utils.cache import AbstractCacheFunction, CacheFunctionPickle, CacheFunctionDummy
 from tabrepo import EvaluationRepository
-from tabrepo.benchmark.experiment_runner import ExperimentRunner, OOFExperimentRunner
 from tabrepo.benchmark.experiment_constructor import Experiment
 
 
@@ -23,7 +22,6 @@ class ExperimentBatchRunner:
         methods: list[Experiment],
         task_metadata: pd.DataFrame,
         ignore_cache: bool,
-        experiment_cls: Type[OOFExperimentRunner] = OOFExperimentRunner,
         cache_cls: Type[AbstractCacheFunction] | None = CacheFunctionPickle,
         cache_cls_kwargs: dict = None,
         cache_path_format: Literal["name_first", "task_first"] = "name_first",
@@ -39,7 +37,6 @@ class ExperimentBatchRunner:
         methods
         task_metadata
         ignore_cache
-        experiment_cls
         cache_cls
         cache_cls_kwargs
         cache_path_format: {"name_first", "task_first"}, default "name_first"
@@ -58,7 +55,6 @@ class ExperimentBatchRunner:
             tids=tids,
             folds=folds,
             methods=methods,
-            experiment_cls=experiment_cls,
             task_metadata=task_metadata,
             ignore_cache=ignore_cache,
             cache_cls=cache_cls,
@@ -121,7 +117,6 @@ def run_experiments(
     methods: list[Experiment],
     task_metadata: pd.DataFrame,
     ignore_cache: bool,
-    experiment_cls: Type[ExperimentRunner] = ExperimentRunner,
     cache_cls: Type[AbstractCacheFunction] | None = CacheFunctionPickle,
     cache_cls_kwargs: dict = None,
     cache_path_format: Literal["name_first", "task_first"] = "name_first",
@@ -209,7 +204,6 @@ def run_experiments(
                     task=task,
                     fold=fold,
                     task_name=task_name,
-                    experiment_cls=experiment_cls,
                     cacher=cacher,
                     ignore_cache=ignore_cache,
                 )
@@ -223,13 +217,12 @@ def run_experiment(
     task: OpenMLTaskWrapper,
     fold: int,
     task_name: str,
-    experiment_cls: Type[ExperimentRunner],
     cacher: AbstractCacheFunction,
     ignore_cache: bool = False,
 ):
     if task is not None:
         out = cacher.cache(
-            fun=experiment_cls.init_and_run,
+            fun=method.experiment_cls.init_and_run,
             fun_kwargs=dict(
                 method_cls=method.method_cls,
                 task=task,

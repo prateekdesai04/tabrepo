@@ -6,18 +6,31 @@ from autogluon.core.models import AbstractModel
 
 from tabrepo.scripts_v5.abstract_class import AbstractExecModel
 from tabrepo.scripts_v5.AutoGluon_class import AGSingleWrapper
+from tabrepo.benchmark.experiment_runner import ExperimentRunner, OOFExperimentRunner
 
 
 class Experiment:
+    """
+
+    Parameters
+    ----------
+    name: str,
+    method_cls: Type[AbstractExecModel],
+    method_kwargs: dict,
+    experiment_cls: Type[ExperimentRunner], default OOFExperimentRunner,
+
+    """
     def __init__(
         self,
         name: str,
         method_cls: Type[AbstractExecModel],
         method_kwargs: dict,
+        experiment_cls: Type[ExperimentRunner] = OOFExperimentRunner,
     ):
         self.name = name
         self.method_cls = method_cls
         self.method_kwargs = method_kwargs
+        self.experiment_cls = experiment_cls
 
     def construct_method(self, problem_type: str, eval_metric) -> AbstractExecModel:
         return self.method_cls(
@@ -44,4 +57,5 @@ class AGModelExperiment(Experiment):
                 "model_hyperparameters": model_hyperparameters,
                 **method_kwargs,
             },
+            experiment_cls=OOFExperimentRunner,
         )
