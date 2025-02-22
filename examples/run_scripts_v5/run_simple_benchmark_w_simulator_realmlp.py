@@ -421,16 +421,16 @@ if __name__ == '__main__':
 
     ]
 
-    tids = [repo_og.dataset_to_tid(dataset) for dataset in datasets]
     # TODO: Make lazy load of dataset in case all experiments are complete for a given dataset
-    repo: EvaluationRepository = ExperimentBatchRunner().generate_repo_from_experiments(
+    repo: EvaluationRepository = ExperimentBatchRunner(
         expname=expname,
-        tids=tids,
+        task_metadata=repo_og.task_metadata,
+        cache_path_format="task_first",
+    ).generate_repo_from_experiments(
+        datasets=datasets,
         folds=folds,
         methods=methods,
-        task_metadata=repo_og.task_metadata,
         ignore_cache=ignore_cache,
-        convert_time_infer_s_from_batch_to_sample=True,
     )
 
     # TODO: repo.configs_type should not be None for custom methods
