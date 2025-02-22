@@ -14,35 +14,88 @@ from tabrepo.benchmark.experiment_constructor import Experiment
 # TODO: Inspect artifact folder to load all results without needing to specify them explicitly
 #  generate_repo_from_dir(expname)
 class ExperimentBatchRunner:
-    def generate_repo_from_experiments(
+    def __init__(
         self,
         expname: str,
-        tids: list[int],
-        folds: list[int],
-        methods: list[Experiment],
         task_metadata: pd.DataFrame,
-        ignore_cache: bool,
         cache_cls: Type[AbstractCacheFunction] | None = CacheFunctionPickle,
-        cache_cls_kwargs: dict = None,
+        cache_cls_kwargs: dict | None = None,
         cache_path_format: Literal["name_first", "task_first"] = "name_first",
-        convert_time_infer_s_from_batch_to_sample: bool = False,
-    ) -> EvaluationRepository:
+    ):
         """
 
         Parameters
         ----------
         expname
-        tids
-        folds
-        methods
-        task_metadata
-        ignore_cache
         cache_cls
         cache_cls_kwargs
         cache_path_format: {"name_first", "task_first"}, default "name_first"
             Determines the folder structure for artifacts.
             "name_first" -> {expname}/data/{method}/{tid}/{fold}/
             "task_first" -> {expname}/data/tasks/{tid}/{fold}/{method}/
+        """
+        cache_cls = CacheFunctionDummy if cache_cls is None else cache_cls
+        cache_cls_kwargs = {} if cache_cls_kwargs is None else cache_cls_kwargs
+
+        self.expname = expname
+        self.task_metadata = task_metadata
+        self.cache_cls = cache_cls
+        self.cache_cls_kwargs = cache_cls_kwargs
+        self.cache_path_format = cache_path_format
+        self._dataset_to_tid_dict = task_metadata[['tid', 'dataset']].drop_duplicates(['tid', 'dataset']).set_index('dataset')['tid'].to_dict()
+
+    def run(
+        self,
+        datasets: list[str],
+        folds: list[int],
+        methods: list[Experiment],
+        ignore_cache: bool,
+    ) -> list:
+        unknown_datasets = []
+        for dataset in datasets:
+            if dataset not in self._dataset_to_tid_dict:
+                unknown_datasets.append(dataset)
+        if unknown_datasets:
+            raise ValueError(
+                f"Dataset must be present in task_metadata!"
+                f"\n\tInvalid Datasets: {unknown_datasets}"
+                f"\n\t  Valid Datasets: {list(self._dataset_to_tid_dict.keys())}"
+            )
+        if len(datasets) != len(set(datasets)):
+            raise AssertionError(f"Duplicate datasets present! Ensure all datasets are unique.")
+        if len(folds) != len(set(folds)):
+            raise AssertionError(f"Duplicate folds present! Ensure all folds are unique.")
+
+        tids = [self._dataset_to_tid_dict[dataset] for dataset in datasets]
+        return run_experiments(
+            expname=self.expname,
+            tids=tids,
+            folds=folds,
+            methods=methods,
+            task_metadata=self.task_metadata,
+            ignore_cache=ignore_cache,
+            cache_cls=self.cache_cls,
+            cache_cls_kwargs=self.cache_cls_kwargs,
+            cache_path_format=self.cache_path_format,
+        )
+
+    def generate_repo_from_experiments(
+        self,
+        datasets: list[str],
+        folds: list[int],
+        methods: list[Experiment],
+        ignore_cache: bool,
+        convert_time_infer_s_from_batch_to_sample: bool = True,
+    ) -> EvaluationRepository:
+        """
+
+        Parameters
+        ----------
+        datasets
+        folds
+        methods
+        task_metadata
+        ignore_cache
         convert_time_infer_s_from_batch_to_sample
 
         Returns
@@ -50,18 +103,25 @@ class ExperimentBatchRunner:
         EvaluationRepository
 
         """
-        results_lst = run_experiments(
-            expname=expname,
-            tids=tids,
+        results_lst = self.run(
+            datasets=datasets,
             folds=folds,
             methods=methods,
-            task_metadata=task_metadata,
             ignore_cache=ignore_cache,
-            cache_cls=cache_cls,
-            cache_cls_kwargs=cache_cls_kwargs,
-            cache_path_format=cache_path_format,
         )
 
+        repo = self.repo_from_results(
+            results_lst=results_lst,
+            convert_time_infer_s_from_batch_to_sample=convert_time_infer_s_from_batch_to_sample,
+        )
+
+        return repo
+
+    def repo_from_results(
+        self,
+        results_lst: list,
+        convert_time_infer_s_from_batch_to_sample: bool = True,  # FIXME: Remove this, it should be False eventually
+    ) -> EvaluationRepository:
         configs_hyperparameters = self.get_configs_hyperparameters(results_lst=results_lst)
 
         results_baselines = [result["df_results"] for result in results_lst if result["simulation_artifacts"] is None]
@@ -74,13 +134,14 @@ class ExperimentBatchRunner:
 
         df_configs = pd.concat(results_lst_df, ignore_index=True)
         if convert_time_infer_s_from_batch_to_sample:
-            df_configs = _convert_time_infer_s_from_batch_to_sample(df=df_configs, task_metadata=task_metadata)
+            df_configs = _convert_time_infer_s_from_batch_to_sample(df=df_configs, task_metadata=self.task_metadata)
 
+        # TODO: per-fold pred_proba_test and pred_proba_val (indices?)
         repo: EvaluationRepository = EvaluationRepository.from_raw(
             df_configs=df_configs,
             df_baselines=df_baselines,
             results_lst_simulation_artifacts=results_lst_simulation_artifacts,
-            task_metadata=task_metadata,
+            task_metadata=self.task_metadata,
             configs_hyperparameters=configs_hyperparameters,
         )
 
