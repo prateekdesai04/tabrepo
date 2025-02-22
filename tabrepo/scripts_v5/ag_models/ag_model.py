@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Type
+
 import pandas as pd
 
 from ..abstract_class import AbstractExecModel
@@ -8,7 +10,7 @@ from autogluon.core.models import AbstractModel
 
 
 class AGModelWrapper(AbstractExecModel):
-    def __init__(self, model_cls, hyperparameters: dict = None, **kwargs):
+    def __init__(self, model_cls: Type[AbstractModel], hyperparameters: dict = None, **kwargs):
         super().__init__(**kwargs)
         assert issubclass(model_cls, AbstractModel)
         self.model_cls = model_cls

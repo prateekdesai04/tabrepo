@@ -8,8 +8,6 @@ import datetime as dt
 from tabrepo.scripts_v6 import logging_config
 from tabrepo.scripts_v6.logging_config import utils_logger as log
 from tabrepo import load_repository, EvaluationRepository
-from tabrepo.scripts_v6.TabPFN_class import CustomTabPFN
-from tabrepo.scripts_v6.TabPFNv2_class import CustomTabPFNv2
 from tabrepo.scripts_v6.LGBM_class import CustomLGBM
 from tabrepo.utils.experiment_utils_v6 import run_experiments, convert_leaderboard_to_configs
 
@@ -117,15 +115,9 @@ if __name__ == '__main__':
             "num_leaves": 32,
             "verbose": -1,  # To suppress warnings
         },
-        "TabPFN": {
-            "device": 'cpu',
-            "N_ensemble_configurations": 32,
-        },
     }
     method_cls_dict = {
         "LightGBM": CustomLGBM,
-        "TabPFN": CustomTabPFN,
-        "TabPFNv2": CustomTabPFNv2,
     }
     methods = list(methods_dict.keys())
     log.info(f"Methods to run: {methods}")
@@ -176,11 +168,13 @@ if __name__ == '__main__':
     log.info(f"Baseline: {baselines}")
 
     log.info(f"Comparing metrics...")
+    from tabrepo.evaluation.evaluator import Evaluator
+    evaluator = Evaluator(repo=repo)
     try:
-        metrics = repo.compare_metrics(
+        metrics = evaluator.compare_metrics(
             results_df,
             datasets=datasets,
-            folds=repo.folds,
+            folds=folds,
             baselines=baselines,
             configs=comparison_configs,
         )
@@ -193,7 +187,7 @@ if __name__ == '__main__':
 
     log.info("Plotting overall rank comparison...")
     try:
-        evaluator_output = repo.plot_overall_rank_comparison(
+        evaluator_output = evaluator.plot_overall_rank_comparison(
             results_df=metrics,
             save_dir=expname,
         )
