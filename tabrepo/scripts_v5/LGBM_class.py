@@ -6,6 +6,12 @@ from .abstract_class import AbstractExecModel
 
 
 class CustomLGBM(AbstractExecModel):
+    def __init__(self, hyperparameters: dict | None = None, **kwargs):
+        super().__init__(**kwargs)
+        if hyperparameters is None:
+            hyperparameters = {}
+        self.hyperparameters = hyperparameters
+
     def get_model_cls(self):
         from lightgbm import LGBMClassifier, LGBMRegressor
         is_classification = self.problem_type in ['binary', 'multiclass']
@@ -19,7 +25,7 @@ class CustomLGBM(AbstractExecModel):
 
     def _fit(self, X: pd.DataFrame, y: pd.Series, **kwargs):
         model_cls = self.get_model_cls()
-        self.model = model_cls()
+        self.model = model_cls(**self.hyperparameters)
         self.model.fit(
             X=X,
             y=y

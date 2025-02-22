@@ -29,7 +29,6 @@ class CustomTabDPT(AbstractExecModel):
         return model_cls
 
     def _fit(self, X: pd.DataFrame, y: pd.Series, X_val: pd.DataFrame = None, y_val: pd.Series = None, **kwargs):
-        from tabularbench.config.config_run import ConfigRun
         model_cls = self.get_model_cls()
 
         if self.problem_type == "regression":
