@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from typing import Any
 
 import pandas as pd
 
@@ -63,16 +64,18 @@ if __name__ == '__main__':
         )
     ]
 
-    tids = [repo_og.dataset_to_tid(dataset) for dataset in datasets]
-    repo: EvaluationRepository = ExperimentBatchRunner().generate_repo_from_experiments(
-        expname=expname,
-        tids=tids,
+    exp_batch_runner = ExperimentBatchRunner(expname=expname, task_metadata=repo_og.task_metadata)
+
+    # Get the run artifacts.
+    results_lst: list[dict[str, Any]] = exp_batch_runner.run(
+        datasets=datasets,
         folds=folds,
         methods=methods,
-        task_metadata=repo_og.task_metadata,
         ignore_cache=ignore_cache,
-        convert_time_infer_s_from_batch_to_sample=True,
     )
+
+    # Convert the run artifacts into an EvaluationRepository
+    repo: EvaluationRepository = exp_batch_runner.repo_from_results(results_lst=results_lst)
 
     repo.print_info()
 
@@ -130,6 +133,8 @@ if __name__ == '__main__':
         print(f"Config Metrics Example:\n{metrics.head(100)}")
 
     # Requires `autogluon_bench` and `autogluon_benchmark`
+    # FIXME: AG-Bench is saving unnecessary files in `data/results/output/openml/None/...`
+    # FIXME: AG-Bench might not work out of the box due to the existence of `run_evaluation_openml.evaluate_amlb_results`
     evaluation_save_dir = os.path.join(expname, "evaluation")
     evaluator_output = evaluator.plot_overall_rank_comparison(
         results_df=metrics,

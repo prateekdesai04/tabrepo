@@ -152,10 +152,10 @@ if __name__ == '__main__':
         tids=tids,
         folds=folds,
         methods=methods,
-        experiment_cls=OOFExperimentRunner,
         cache_cls=CacheFunctionPickle,
         task_metadata=repo.task_metadata,
         ignore_cache=ignore_cache,
+        cache_path_format="task_first",
     )
 
     results_baselines = [result["df_results"] for result in results_lst if result["simulation_artifacts"] is None]
