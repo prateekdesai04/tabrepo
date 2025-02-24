@@ -5,8 +5,8 @@ import pandas as pd
 from tabrepo import load_repository, EvaluationRepository
 from tabrepo.scripts_v5.AutoGluon_class import AGWrapper
 from tabrepo.scripts_v5.ag_models.ag_model import AGModelWrapper
-from tabrepo.scripts_v5.ag_models.ebm_model import ExplainableBoostingMachine
-from tabrepo.scripts_v5.ag_models.tabpfn_v2_model import TabPFNV2Model
+from tabrepo.scripts_v5.ag_models.ebm_model import ExplainableBoostingMachineModel
+from tabrepo.scripts_v5.ag_models.tabpfnv2_client_model import TabPFNV2ClientModel
 from autogluon.tabular.models.tabpfnmix.tabpfnmix_model import TabPFNMixModel
 from tabrepo.scripts_v5.ag_models.tabdpt_model import TabDPTModel
 from tabrepo.benchmark.experiment_utils import run_experiments, convert_leaderboard_to_configs
@@ -103,11 +103,11 @@ if __name__ == '__main__':
         }}),
         ("EBM_BAG_L1", AGWrapper, {"fit_kwargs": {
             "num_bag_folds": 8, "num_bag_sets": 1, "fit_weighted_ensemble": False, "calibrate": False,
-            "hyperparameters": {ExplainableBoostingMachine: [{}]},
+            "hyperparameters": {ExplainableBoostingMachineModel: [{}]},
         }}),
         ("TabPFNv2_N4_BAG_L1", AGWrapper, {"fit_kwargs": {
             "num_bag_folds": 8, "num_bag_sets": 1, "fit_weighted_ensemble": False, "calibrate": False,
-            "hyperparameters": {TabPFNV2Model: [{"n_estimators": 4}]},
+            "hyperparameters": {TabPFNV2ClientModel: [{"n_estimators": 4}]},
         }}),
         ("TabPFN_Mix7_600000_N1_E0_BAG_L1", AGWrapper, {"fit_kwargs": {
             "num_bag_folds": 8, "num_bag_sets": 1, "fit_weighted_ensemble": False, "calibrate": False,
@@ -127,7 +127,7 @@ if __name__ == '__main__':
         ("TabDPT_CS256", AGModelWrapper, {"model_cls": TabDPTModel, "hyperparameters": {"context_size": 256}}),
         ("TabDPT_CS512", AGModelWrapper, {"model_cls": TabDPTModel, "hyperparameters": {"context_size": 512}}),
         ("TabDPT_CS1024", AGModelWrapper, {"model_cls": TabDPTModel, "hyperparameters": {"context_size": 1024}}),
-        # ("TabPFNv2_N32", AGModelWrapper, {"model_cls": TabPFNV2Model, "hyperparameters": {"n_estimators": 32}}),
+        # ("TabPFNv2_N32", AGModelWrapper, {"model_cls": TabPFNV2ClientModel, "hyperparameters": {"n_estimators": 32}}),
         # ("TabDPT_N1_E0_BAG_L1", AGWrapper, {"fit_kwargs": {
         #     "num_bag_folds": 8, "num_bag_sets": 1, "fit_weighted_ensemble": False, "calibrate": False,
         #     "hyperparameters": {TabDPTModel: [{}]},
