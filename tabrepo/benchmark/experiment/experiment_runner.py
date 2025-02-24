@@ -9,7 +9,7 @@ from autogluon.core.data.label_cleaner import LabelCleaner, LabelCleanerDummy
 from autogluon.core.metrics import get_metric, Scorer
 from autogluon_benchmark.frameworks.autogluon.run import ag_eval_metric_map
 from autogluon_benchmark.tasks.task_wrapper import OpenMLTaskWrapper
-from tabrepo.scripts_v5.abstract_class import AbstractExecModel
+from tabrepo.benchmark.models.wrapper.abstract_class import AbstractExecModel
 
 
 class ExperimentRunner:

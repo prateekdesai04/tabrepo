@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from .abstract_class import AbstractExecModel
+from tabrepo.benchmark.models.wrapper.abstract_class import AbstractExecModel
 
 
 class CustomLGBM(AbstractExecModel):

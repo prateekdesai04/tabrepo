@@ -4,7 +4,7 @@ from typing import Type
 
 import pandas as pd
 
-from ..abstract_class import AbstractExecModel
+from tabrepo.benchmark.models.wrapper.abstract_class import AbstractExecModel
 from autogluon.core.data.label_cleaner import LabelCleanerMulticlassToBinary
 from autogluon.core.models import AbstractModel
 

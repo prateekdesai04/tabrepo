@@ -4,9 +4,9 @@ from typing import Type
 
 from autogluon.core.models import AbstractModel
 
-from tabrepo.scripts_v5.abstract_class import AbstractExecModel
-from tabrepo.scripts_v5.AutoGluon_class import AGSingleWrapper
-from tabrepo.benchmark.experiment_runner import ExperimentRunner, OOFExperimentRunner
+from tabrepo.benchmark.models.wrapper.abstract_class import AbstractExecModel
+from tabrepo.benchmark.models.wrapper.AutoGluon_class import AGSingleWrapper
+from tabrepo.benchmark.experiment.experiment_runner import ExperimentRunner, OOFExperimentRunner
 from tabrepo.utils.cache import AbstractCacheFunction, CacheFunctionDummy
 from autogluon_benchmark.tasks.task_wrapper import OpenMLTaskWrapper
 

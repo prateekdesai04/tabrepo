@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from .abstract_class import AbstractExecModel
+from tabrepo.benchmark.models.wrapper.abstract_class import AbstractExecModel
 
 
 class CustomTabDPT(AbstractExecModel):
@@ -21,7 +21,7 @@ class CustomTabDPT(AbstractExecModel):
         self.path_weights_regression = path_weights_regression
 
     def get_model_cls(self):
-        from .tabdpt.tabdpt import TabDPTClassifier, TabDPTRegressor
+        from tabrepo.benchmark.models.ag.tabdpt.internal.tabdpt import TabDPTClassifier, TabDPTRegressor
         if self.problem_type in ['binary', 'multiclass']:
             model_cls = TabDPTClassifier
         else:

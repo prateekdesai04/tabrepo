@@ -8,7 +8,7 @@ from autogluon_benchmark.tasks.task_wrapper import OpenMLTaskWrapper
 from tabrepo.repository.repo_utils import convert_time_infer_s_from_batch_to_sample as _convert_time_infer_s_from_batch_to_sample
 from tabrepo.utils.cache import AbstractCacheFunction, CacheFunctionPickle, CacheFunctionDummy
 from tabrepo import EvaluationRepository
-from tabrepo.benchmark.experiment_constructor import Experiment
+from tabrepo.benchmark.experiment.experiment_constructor import Experiment
 
 
 # TODO: Inspect artifact folder to load all results without needing to specify them explicitly
