@@ -6,6 +6,9 @@ from autogluon.features.generators import LabelEncoderFeatureGenerator
 
 
 class TabDPTModel(AbstractModel):
+    ag_key = "TABDPT"
+    ag_name = "TabDPT"
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._feature_generator = None

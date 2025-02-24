@@ -17,7 +17,10 @@ if TYPE_CHECKING:
 # TODO: memory usage estimation
 # TODO: fix joblib errors when using EBM
 # TODO: handle interactions for multiclass
-class ExplainableBoostingMachine(AbstractModel):
+class ExplainableBoostingMachineModel(AbstractModel):
+    ag_key = "EBM"
+    ag_name = "ExplainableBoostingMachine"
+
     _category_features: list[str] = None
 
     def _get_model_type(self):

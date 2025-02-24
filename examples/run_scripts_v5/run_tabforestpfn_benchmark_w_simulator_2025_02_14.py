@@ -4,8 +4,8 @@ import pandas as pd
 
 from tabrepo import load_repository, EvaluationRepository
 from tabrepo.scripts_v5.AutoGluon_class import AGWrapper
-from tabrepo.scripts_v5.ag_models.tabpfn_v2_model import TabPFNV2Model
-from tabrepo.scripts_v5.ag_models.tabpfn_v2_local_model import TabPFNV2LocalModel
+from tabrepo.scripts_v5.ag_models.tabpfnv2_client_model import TabPFNV2ClientModel
+from tabrepo.scripts_v5.ag_models.tabpfnv2_model import TabPFNV2Model
 from tabrepo.benchmark.experiment_utils import run_experiments, convert_leaderboard_to_configs
 from tabrepo.utils.cache import CacheFunctionPickle
 from tabrepo.repository.repo_utils import convert_time_infer_s_from_batch_to_sample
@@ -64,15 +64,15 @@ if __name__ == '__main__':
     methods = [
         ("TabPFNv2_N4_BAG_L1", AGWrapper, {"fit_kwargs": {
             "num_bag_folds": 8, "num_bag_sets": 1, "fit_weighted_ensemble": False, "calibrate": False,
-            "hyperparameters": {TabPFNV2Model: [{"n_estimators": 4}]},
+            "hyperparameters": {TabPFNV2ClientModel: [{"n_estimators": 4}]},
         }}),
         # ("TabPFNv2Local_N4_BAG_L1", AGWrapper, {"fit_kwargs": {
         #     "num_bag_folds": 8, "num_bag_sets": 1, "fit_weighted_ensemble": False, "calibrate": False,
-        #     "hyperparameters": {TabPFNV2LocalModel: [{"n_estimators": 4}]},
+        #     "hyperparameters": {TabPFNV2Model: [{"n_estimators": 4}]},
         # }}),
         ("TabPFNv2LocalParallel_N4_BAG_L1", AGWrapper, {"fit_kwargs": {
             "num_bag_folds": 8, "num_bag_sets": 1, "fit_weighted_ensemble": False, "calibrate": False,
-            "hyperparameters": {TabPFNV2LocalModel: [{"n_estimators": 4, "ag_args_ensemble": {"fold_fitting_strategy": "parallel_local"}}]},
+            "hyperparameters": {TabPFNV2Model: [{"n_estimators": 4, "ag_args_ensemble": {"fold_fitting_strategy": "parallel_local"}}]},
         }}),
     ]
 

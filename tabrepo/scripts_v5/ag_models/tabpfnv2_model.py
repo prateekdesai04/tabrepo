@@ -5,7 +5,11 @@ from autogluon.core.constants import BINARY, MULTICLASS, REGRESSION
 from autogluon.core.models import AbstractModel
 
 
-class TabPFNV2LocalModel(AbstractModel):
+# FIXME: why so slow?
+class TabPFNV2Model(AbstractModel):
+    ag_key = "TABPFNV2"
+    ag_name = "TabPFNv2"
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._feature_generator = None

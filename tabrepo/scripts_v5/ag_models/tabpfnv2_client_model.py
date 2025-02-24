@@ -4,7 +4,10 @@ from autogluon.core.constants import BINARY, MULTICLASS, REGRESSION
 from autogluon.core.models import AbstractModel
 
 
-class TabPFNV2Model(AbstractModel):
+class TabPFNV2ClientModel(AbstractModel):
+    ag_key = "TABPFNV2_CLIENT"
+    ag_name = "TabPFNv2Client"
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._feature_generator = None
