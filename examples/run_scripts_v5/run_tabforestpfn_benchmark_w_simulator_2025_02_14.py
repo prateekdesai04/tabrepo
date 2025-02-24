@@ -7,7 +7,6 @@ from tabrepo.scripts_v5.AutoGluon_class import AGWrapper
 from tabrepo.scripts_v5.ag_models.tabpfn_v2_model import TabPFNV2Model
 from tabrepo.scripts_v5.ag_models.tabpfn_v2_local_model import TabPFNV2LocalModel
 from tabrepo.benchmark.experiment_utils import run_experiments, convert_leaderboard_to_configs
-from tabrepo.benchmark.experiment_runner import OOFExperimentRunner
 from tabrepo.utils.cache import CacheFunctionPickle
 from tabrepo.repository.repo_utils import convert_time_infer_s_from_batch_to_sample
 
@@ -84,7 +83,6 @@ if __name__ == '__main__':
         tids=tids,
         folds=folds,
         methods=methods,
-        experiment_cls=OOFExperimentRunner,
         cache_cls=CacheFunctionPickle,
         task_metadata=repo.task_metadata,
         ignore_cache=ignore_cache,
