@@ -6,7 +6,7 @@ from typing import Type
 
 import pandas as pd
 
-from .abstract_class import AbstractExecModel
+from tabrepo.benchmark.models.wrapper.abstract_class import AbstractExecModel
 
 
 class AGWrapper(AbstractExecModel):

@@ -6,8 +6,7 @@ from typing import Any
 import pandas as pd
 
 from tabrepo import EvaluationRepository, EvaluationRepositoryCollection, Evaluator
-from tabrepo.benchmark.experiment_constructor import AGModelExperiment, Experiment
-from tabrepo.benchmark.experiment_utils import ExperimentBatchRunner
+from tabrepo.benchmark.experiment import AGModelExperiment, Experiment, ExperimentBatchRunner
 from tabrepo.scripts_v5.LGBM_class import CustomLGBM
 
 

@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import pandas as pd
 
-from tabrepo.benchmark.experiment_utils import ExperimentBatchRunner
+from tabrepo.benchmark.experiment.experiment_utils import ExperimentBatchRunner
 from tabrepo import EvaluationRepository, EvaluationRepositoryCollection, Evaluator
-from tabrepo.scripts_v5.AutoGluon_class import AGWrapper
-from tabrepo.scripts_v5.ag_models.realmlp_model import RealMLPModel
+from tabrepo.benchmark.models.wrapper.AutoGluon_class import AGWrapper
+from tabrepo.benchmark.models.ag import RealMLPModel
 
 
 # To re-use the pre-computed results if you have the file "tabrepo_artifacts_realmlp_20250201.zip":

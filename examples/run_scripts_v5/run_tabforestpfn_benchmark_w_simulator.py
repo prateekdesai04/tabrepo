@@ -3,13 +3,15 @@ from __future__ import annotations
 import pandas as pd
 
 from tabrepo import load_repository, EvaluationRepository
-from tabrepo.scripts_v5.AutoGluon_class import AGWrapper
-from tabrepo.scripts_v5.ag_models.ag_model import AGModelWrapper
-from tabrepo.scripts_v5.ag_models.ebm_model import ExplainableBoostingMachineModel
-from tabrepo.scripts_v5.ag_models.tabpfnv2_client_model import TabPFNV2ClientModel
-from autogluon.tabular.models.tabpfnmix.tabpfnmix_model import TabPFNMixModel
-from tabrepo.scripts_v5.ag_models.tabdpt_model import TabDPTModel
-from tabrepo.benchmark.experiment_utils import run_experiments, convert_leaderboard_to_configs
+from tabrepo.benchmark.models.wrapper.AutoGluon_class import AGWrapper
+from tabrepo.benchmark.models.wrapper.ag_model import AGModelWrapper
+from tabrepo.benchmark.models.ag import (
+    ExplainableBoostingMachineModel,
+    TabDPTModel,
+    TabPFNV2ClientModel,
+)
+from autogluon.tabular.models import TabPFNMixModel
+from tabrepo.benchmark.experiment.experiment_utils import run_experiments, convert_leaderboard_to_configs
 from tabrepo.utils.cache import CacheFunctionPickle
 from tabrepo.repository.repo_utils import convert_time_infer_s_from_batch_to_sample
 

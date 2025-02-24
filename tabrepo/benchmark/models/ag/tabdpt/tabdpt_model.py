@@ -14,7 +14,7 @@ class TabDPTModel(AbstractModel):
         self._feature_generator = None
 
     def _fit(self, X: pd.DataFrame, y: pd.Series, X_val: pd.DataFrame = None, y_val: pd.Series = None, **kwargs):
-        from tabrepo.scripts_v5.TabDPT_class import CustomTabDPT
+        from tabrepo.benchmark.models.ag.tabdpt.TabDPT_class import CustomTabDPT
 
         ag_params = self._get_ag_params()
         max_classes = ag_params.get("max_classes")
