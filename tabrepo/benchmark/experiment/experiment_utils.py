@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal, Type
+from typing import Any, Literal, Type
 
 import pandas as pd
 from autogluon_benchmark.tasks.task_wrapper import OpenMLTaskWrapper
@@ -44,27 +44,37 @@ class ExperimentBatchRunner:
         self.cache_path_format = cache_path_format
         self._dataset_to_tid_dict = task_metadata[['tid', 'dataset']].drop_duplicates(['tid', 'dataset']).set_index('dataset')['tid'].to_dict()
 
+    @property
+    def datasets(self) -> list[str]:
+        return list(self._dataset_to_tid_dict.keys())
+
     def run(
         self,
+        methods: list[Experiment],
         datasets: list[str],
         folds: list[int],
-        methods: list[Experiment],
-        ignore_cache: bool,
-    ) -> list:
-        unknown_datasets = []
-        for dataset in datasets:
-            if dataset not in self._dataset_to_tid_dict:
-                unknown_datasets.append(dataset)
-        if unknown_datasets:
-            raise ValueError(
-                f"Dataset must be present in task_metadata!"
-                f"\n\tInvalid Datasets: {unknown_datasets}"
-                f"\n\t  Valid Datasets: {list(self._dataset_to_tid_dict.keys())}"
-            )
-        if len(datasets) != len(set(datasets)):
-            raise AssertionError(f"Duplicate datasets present! Ensure all datasets are unique.")
-        if len(folds) != len(set(folds)):
-            raise AssertionError(f"Duplicate folds present! Ensure all folds are unique.")
+        ignore_cache: bool = False,
+    ) -> list[dict[str, Any]]:
+        """
+
+        Parameters
+        ----------
+        methods
+        datasets
+        folds
+        ignore_cache: bool, default False
+            If True, will run the experiments regardless if the cache exists already, and will overwrite the cache file upon completion.
+            If False, will load the cache result if it exists for a given experiment, rather than running the experiment again.
+
+        Returns
+        -------
+        results_lst: list[dict[str, Any]]
+            A list of experiment run metadata dictionaries.
+            Can pass into `exp_bach_runner.repo_from_results(results_lst=results_lst)` to generate an EvaluationRepository.
+
+        """
+        self._validate_datasets(datasets=datasets)
+        self._validate_folds(folds=folds)
 
         tids = [self._dataset_to_tid_dict[dataset] for dataset in datasets]
         return run_experiments(
@@ -78,6 +88,60 @@ class ExperimentBatchRunner:
             cache_cls_kwargs=self.cache_cls_kwargs,
             cache_path_format=self.cache_path_format,
         )
+
+    def load_results(
+        self,
+        methods: list[Experiment | str],
+        datasets: list[str],
+        folds: list[int],
+        require_all: bool = True,
+    ) -> list[dict[str, Any]]:
+        """
+        Load results from the cache.
+
+        Parameters
+        ----------
+        methods
+        datasets
+        folds
+        require_all: bool, default True
+            If True, will raise an exception if not all methods x datasets x folds have a cached result to load.
+            If False, will return only the list of results with a cached result. This can be an empty list if no cached results exist.
+
+        Returns
+        -------
+        results_lst
+            The same output format returned by `self.run`
+
+        """
+        results_lst = []
+        results_lst_exists = []
+        results_lst_missing = []
+        for method in methods:
+            if isinstance(method, Experiment):
+                method_name = method.name
+            else:
+                method_name = method
+            for dataset in datasets:
+                for fold in folds:
+                    cache_exists = self._cache_exists(method_name=method_name, dataset=dataset, fold=fold)
+                    cache_args = (method_name, dataset, fold)
+                    if cache_exists:
+                        results_lst_exists.append(cache_args)
+                        print(method.name, dataset, fold)
+                        print(f"\t{cache_exists}")
+                    else:
+                        results_lst_missing.append(cache_args)
+        if require_all and results_lst_missing:
+            raise AssertionError(
+                f"Missing cached results for {len(results_lst_missing)}/{len(results_lst_exists) + len(results_lst_missing)} experiments! "
+                f"\nTo load only the {len(results_lst_exists)} existing experiments, set `require_all=False`, "
+                f"or call `exp_batch_runner.run(methods=methods, datasets=datasets, folds=folds)` to run the missing experiments."
+                f"\nMissing experiments:\n\t{results_lst_missing}"
+            )
+        for method_name, dataset, fold in results_lst_exists:
+            results_lst.append(self._load_result(method_name=method_name, dataset=dataset, fold=fold))
+        return results_lst
 
     def generate_repo_from_experiments(
         self,
@@ -94,7 +158,6 @@ class ExperimentBatchRunner:
         datasets
         folds
         methods
-        task_metadata
         ignore_cache
         convert_time_infer_s_from_batch_to_sample
 
@@ -119,7 +182,7 @@ class ExperimentBatchRunner:
 
     def repo_from_results(
         self,
-        results_lst: list,
+        results_lst: list[dict[str, Any]],
         convert_time_infer_s_from_batch_to_sample: bool = True,  # FIXME: Remove this, it should be False eventually
     ) -> EvaluationRepository:
         configs_hyperparameters = self.get_configs_hyperparameters(results_lst=results_lst)
@@ -169,6 +232,49 @@ class ExperimentBatchRunner:
         if not configs_hyperparameters:
             configs_hyperparameters = None
         return configs_hyperparameters
+
+    def _cache_name(self, method_name: str, dataset: str, fold: int) -> str:
+        # TODO: Windows? Use Path?
+        tid = self._dataset_to_tid_dict[dataset]
+        if self.cache_path_format == "name_first":
+            cache_name = f"data/{method_name}/{tid}/{fold}/results"
+        elif self.cache_path_format == "task_first":
+            # Legacy format from early prototyping
+            cache_name = f"data/tasks/{tid}/{fold}/{method_name}/results"
+        else:
+            raise ValueError(f"Unknown cache_path_format: {self.cache_path_format}")
+        return cache_name
+
+    def _cache_exists(self, method_name: str, dataset: str, fold: int) -> bool:
+        cacher = self._get_cacher(method_name=method_name, dataset=dataset, fold=fold)
+        return cacher.exists
+
+    def _load_result(self, method_name: str, dataset: str, fold: int) -> dict[str, Any]:
+        cacher = self._get_cacher(method_name=method_name, dataset=dataset, fold=fold)
+        return cacher.load_cache()
+
+    def _get_cacher(self, method_name: str, dataset: str, fold: int) -> AbstractCacheFunction:
+        cache_name = self._cache_name(method_name=method_name, dataset=dataset, fold=fold)
+        cacher = self.cache_cls(cache_name=cache_name, cache_path=self.expname, **self.cache_cls_kwargs)
+        return cacher
+
+    def _validate_datasets(self, datasets: list[str]):
+        unknown_datasets = []
+        for dataset in datasets:
+            if dataset not in self._dataset_to_tid_dict:
+                unknown_datasets.append(dataset)
+        if unknown_datasets:
+            raise ValueError(
+                f"Dataset must be present in task_metadata!"
+                f"\n\tInvalid Datasets: {unknown_datasets}"
+                f"\n\t  Valid Datasets: {self.datasets}"
+            )
+        if len(datasets) != len(set(datasets)):
+            raise AssertionError(f"Duplicate datasets present! Ensure all datasets are unique.")
+
+    def _validate_folds(self, folds: list[int]):
+        if len(folds) != len(set(folds)):
+            raise AssertionError(f"Duplicate folds present! Ensure all folds are unique.")
 
 
 def run_experiments(

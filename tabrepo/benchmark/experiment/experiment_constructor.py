@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from typing import Type
 
 from autogluon.core.models import AbstractModel
@@ -88,4 +89,41 @@ class AGModelExperiment(Experiment):
                 **method_kwargs,
             },
             experiment_cls=OOFExperimentRunner,
+        )
+
+
+# convenience wrapper
+class AGModelBagExperiment(AGModelExperiment):
+    """
+    AutoGluon Bagged Model Wrapper.
+
+    Will fit the model with `num_bag_folds` folds and `num_bag_sets` sets (aka repeats).
+    In total will fit `num_bag_folds * num_bag_sets` models in the bag.
+    """
+    def __init__(
+        self,
+        name: str,
+        model_cls: Type[AbstractModel],
+        model_hyperparameters: dict,
+        num_bag_folds: int = 8,
+        num_bag_sets: int = 1,
+        **method_kwargs,
+    ):
+        assert isinstance(num_bag_folds, int)
+        assert isinstance(num_bag_sets, int)
+        assert num_bag_folds >= 2
+        assert num_bag_sets >= 1
+        if "fit_kwargs" in method_kwargs:
+            assert "num_bag_folds" not in method_kwargs["fit_kwargs"], f"Set `num_bag_folds` directly in `AGModelBagExperiment` rather than in `fit_kwargs`"
+            assert "num_bag_sets" not in method_kwargs["fit_kwargs"], f"Set `num_bag_sets` directly in `AGModelBagExperiment` rather than in `fit_kwargs`"
+            method_kwargs["fit_kwargs"] = copy.deepcopy(method_kwargs["fit_kwargs"])
+        else:
+            method_kwargs["fit_kwargs"] = {}
+        method_kwargs["fit_kwargs"]["num_bag_folds"] = num_bag_folds
+        method_kwargs["fit_kwargs"]["num_bag_sets"] = num_bag_sets
+        super().__init__(
+            name=name,
+            model_cls=model_cls,
+            model_hyperparameters=model_hyperparameters,
+            **method_kwargs,
         )

@@ -6,7 +6,7 @@ from typing import Any
 import pandas as pd
 
 from tabrepo import EvaluationRepository, EvaluationRepositoryCollection, Evaluator
-from tabrepo.benchmark.experiment import AGModelExperiment, Experiment, ExperimentBatchRunner
+from tabrepo.benchmark.experiment import AGModelBagExperiment, Experiment, ExperimentBatchRunner
 from tabrepo.scripts_v5.LGBM_class import CustomLGBM
 
 
@@ -34,21 +34,21 @@ if __name__ == '__main__':
     # This list of methods will be fit sequentially on each task (dataset x fold)
     methods = [
         # This will be a `config` in EvaluationRepository, because it computes out-of-fold predictions and thus can be used for post-hoc ensemble.
-        AGModelExperiment(  # Wrapper for fitting a single model via AutoGluon
+        AGModelBagExperiment(  # Wrapper for fitting a single bagged model via AutoGluon
             # The name you want the config to have
             name="LightGBM_c1_BAG_L1_Reproduced",
 
             # The class of the model. Can also be a string if AutoGluon recognizes it, such as `"GBM"`
             # Supports any model that inherits from `autogluon.core.models.AbstractModel`
             model_cls=LGBModel,  # model_cls="GBM",  <- identical
-            model_hyperparameters={"num_boost_round": 10},  # The non-default model hyperparameters.
-            fit_kwargs={"num_bag_folds": 8},  # num_bag_folds=8 was used in the TabRepo 2024 paper
+            model_hyperparameters={},  # The non-default model hyperparameters.
+            num_bag_folds=8,  # num_bag_folds=8 was used in the TabRepo 2024 paper
         ),
-        AGModelExperiment(
+        AGModelBagExperiment(
             name="XGBoost_c1_BAG_L1_Reproduced",
             model_cls=XGBoostModel,
             model_hyperparameters={},
-            fit_kwargs={"num_bag_folds": 8},
+            num_bag_folds=8,
         ),
 
         # This will be a `baseline` in EvaluationRepository, because it doesn't compute out-of-fold predictions and thus can't be used for post-hoc ensemble.
@@ -66,6 +66,7 @@ if __name__ == '__main__':
     exp_batch_runner = ExperimentBatchRunner(expname=expname, task_metadata=repo_og.task_metadata)
 
     # Get the run artifacts.
+    # Fits each method on each task (datasets * folds)
     results_lst: list[dict[str, Any]] = exp_batch_runner.run(
         datasets=datasets,
         folds=folds,
