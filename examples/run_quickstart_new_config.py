@@ -45,6 +45,7 @@ if __name__ == '__main__':
             model_cls=LGBModel,  # model_cls="GBM",  <- identical
             model_hyperparameters={},  # The non-default model hyperparameters.
             num_bag_folds=8,  # num_bag_folds=8 was used in the TabRepo 2024 paper
+            time_limit=3600,  # time_limit=3600 was used in the TabRepo 2024 paper
         ),
         AGModelBagExperiment(
             # Reproduces the `XGBoost_c1_BAG_L1` model from the TabRepo 2024 paper
@@ -53,6 +54,7 @@ if __name__ == '__main__':
             model_cls=XGBoostModel,
             model_hyperparameters={},
             num_bag_folds=8,
+            time_limit=3600,
         ),
 
         # This will be a `baseline` in EvaluationRepository, because it doesn't compute out-of-fold predictions and thus can't be used for post-hoc ensemble.

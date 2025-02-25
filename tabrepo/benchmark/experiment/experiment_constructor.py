@@ -30,6 +30,9 @@ class Experiment:
         method_kwargs: dict,
         experiment_cls: Type[ExperimentRunner] = OOFExperimentRunner,
     ):
+        assert isinstance(name, str)
+        assert len(name) > 0, "Name cannot be empty!"
+        assert isinstance(method_kwargs, dict)
         self.name = name
         self.method_cls = method_cls
         self.method_kwargs = method_kwargs
@@ -78,8 +81,17 @@ class AGModelExperiment(Experiment):
         name: str,
         model_cls: Type[AbstractModel],
         model_hyperparameters: dict,
+        time_limit: int | None = None,
         **method_kwargs,
     ):
+        if time_limit is not None:
+            assert isinstance(time_limit, int)
+            assert time_limit > 0
+        if "fit_kwargs" in method_kwargs:
+            assert "time_limit" not in method_kwargs["fit_kwargs"], f"Set `time_limit` directly in {self.__class__.__name__} rather than in `fit_kwargs`"
+        assert isinstance(model_hyperparameters, dict)
+        if time_limit is not None:
+            model_hyperparameters = self._insert_time_limit(model_hyperparameters=model_hyperparameters, time_limit=time_limit, method_kwargs=method_kwargs)
         super().__init__(
             name=name,
             method_cls=AGSingleWrapper,
@@ -90,6 +102,25 @@ class AGModelExperiment(Experiment):
             },
             experiment_cls=OOFExperimentRunner,
         )
+
+    def _insert_time_limit(self, model_hyperparameters: dict, time_limit: int | None, method_kwargs: dict) -> dict:
+        is_bag = False
+        if "fit_kwargs" in method_kwargs and "num_bag_folds" in method_kwargs["fit_kwargs"]:
+            if method_kwargs["fit_kwargs"]["num_bag_folds"] > 1:
+                is_bag = True
+        model_hyperparameters = copy.deepcopy(model_hyperparameters)
+        if is_bag:
+            if "ag_args_ensemble" in model_hyperparameters:
+                assert "ag.max_time_limit" not in model_hyperparameters["ag_args_ensemble"], \
+                    f"Set `time_limit` directly in {self.__class__.__name__} rather than in `ag_args_ensemble`"
+            else:
+                model_hyperparameters["ag_args_ensemble"] = {}
+            model_hyperparameters["ag_args_ensemble"]["ag.max_time_limit"] = time_limit
+        else:
+            assert "ag.max_time_limit" not in model_hyperparameters, \
+                f"Set `time_limit` directly in {self.__class__.__name__} rather than in `model_hyperparameters`"
+            model_hyperparameters["ag.max_time_limit"] = time_limit
+        return model_hyperparameters
 
 
 # convenience wrapper
@@ -105,6 +136,7 @@ class AGModelBagExperiment(AGModelExperiment):
         name: str,
         model_cls: Type[AbstractModel],
         model_hyperparameters: dict,
+        time_limit: int | None = None,
         num_bag_folds: int = 8,
         num_bag_sets: int = 1,
         **method_kwargs,
@@ -114,8 +146,8 @@ class AGModelBagExperiment(AGModelExperiment):
         assert num_bag_folds >= 2
         assert num_bag_sets >= 1
         if "fit_kwargs" in method_kwargs:
-            assert "num_bag_folds" not in method_kwargs["fit_kwargs"], f"Set `num_bag_folds` directly in `AGModelBagExperiment` rather than in `fit_kwargs`"
-            assert "num_bag_sets" not in method_kwargs["fit_kwargs"], f"Set `num_bag_sets` directly in `AGModelBagExperiment` rather than in `fit_kwargs`"
+            assert "num_bag_folds" not in method_kwargs["fit_kwargs"], f"Set `num_bag_folds` directly in {self.__class__.__name__} rather than in `fit_kwargs`"
+            assert "num_bag_sets" not in method_kwargs["fit_kwargs"], f"Set `num_bag_sets` directly in {self.__class__.__name__} rather than in `fit_kwargs`"
             method_kwargs["fit_kwargs"] = copy.deepcopy(method_kwargs["fit_kwargs"])
         else:
             method_kwargs["fit_kwargs"] = {}
@@ -125,5 +157,6 @@ class AGModelBagExperiment(AGModelExperiment):
             name=name,
             model_cls=model_cls,
             model_hyperparameters=model_hyperparameters,
+            time_limit=time_limit,
             **method_kwargs,
         )
