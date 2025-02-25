@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import pandas as pd
 
-from tabrepo.benchmark.experiment.experiment_utils import ExperimentBatchRunner
 from tabrepo import EvaluationRepository, EvaluationRepositoryCollection, Evaluator
-from tabrepo.benchmark.models.wrapper.AutoGluon_class import AGWrapper
+from tabrepo.benchmark.experiment import AGModelBagExperiment, ExperimentBatchRunner
+
 from tabrepo.benchmark.models.ag import RealMLPModel
 
 
@@ -52,386 +52,83 @@ if __name__ == '__main__':
 
     # TODO: Why is RealMLP slow when running sequentially / not in a bag? Way slower than it should be. Torch threads?
     methods = [
-        (
-            "RealMLP_c1_BAG_L1_v4_noes_r0",  # 2025/02/01 num_cpus=192, pytabkit==1.1.3
-            AGWrapper,
-            {
-                "fit_kwargs": {
-                    "num_bag_folds": 8,
-                    "num_bag_sets": 1,
-                    "fit_weighted_ensemble": False,
-                    "calibrate": False,
-                    "verbosity": 2,
-                    "hyperparameters": {
-                        RealMLPModel: {
-                            "random_state": 0,
-                            "use_early_stopping": False,
-                            "use_ls": None,
-                        },
-                    },
-                }
+        AGModelBagExperiment(  # 2025/02/01 num_cpus=192, pytabkit==1.1.3
+            name="RealMLP_c1_BAG_L1_v4_noes_r0",
+            model_cls=RealMLPModel,
+            model_hyperparameters={
+                "random_state": 0,
+                "use_early_stopping": False,
+                "use_ls": None,
             },
         ),
-        (
-            "RealMLP_c2_BAG_L1_AutoLS",  # 2025/02/01 num_cpus=192, pytabkit==1.1.3
-            AGWrapper,
-            {
-                "fit_kwargs": {
-                    "num_bag_folds": 8,
-                    "num_bag_sets": 1,
-                    "fit_weighted_ensemble": False,
-                    "calibrate": False,
-                    "verbosity": 2,
-                    "hyperparameters": {
-                        RealMLPModel: {
-                            "random_state": 0,
-                            "use_early_stopping": False,
-                            "use_ls": "auto",
-                        },
-                    },
-                }
+        AGModelBagExperiment(  # 2025/02/01 num_cpus=192, pytabkit==1.1.3
+            name="RealMLP_c2_BAG_L1_AutoLS",
+            model_cls=RealMLPModel,
+            model_hyperparameters={
+                "random_state": 0,
+                "use_early_stopping": False,
+                "use_ls": "auto",
             },
         ),
-        (
-            "RealMLP_c2_BAG_L1_AutoLS_AUCStop",  # 2025/02/01 num_cpus=192, pytabkit==1.1.3
-            AGWrapper,
-            {
-                "fit_kwargs": {
-                    "num_bag_folds": 8,
-                    "num_bag_sets": 1,
-                    "fit_weighted_ensemble": False,
-                    "calibrate": False,
-                    "verbosity": 2,
-                    "hyperparameters": {
-                        RealMLPModel: {
-                            "random_state": 0,
-                            "use_early_stopping": False,
-                            "use_ls": "auto",
-                            "use_roc_auc_to_stop": True,
-                        },
-                    },
-                }
+        AGModelBagExperiment(  # 2025/02/01 num_cpus=192, pytabkit==1.1.3
+            name="RealMLP_c2_BAG_L1_AutoLS_AUCStop",
+            model_cls=RealMLPModel,
+            model_hyperparameters={
+                "random_state": 0,
+                "use_early_stopping": False,
+                "use_ls": "auto",
+                "use_roc_auc_to_stop": True,
             },
         ),
-        # (
-        #     "RealMLP_c2_BAG_L1_AutoLS_AUCStop_121",  # 2025/02/05 num_cpus=192, pytabkit==1.2.1
-        #     AGWrapper,
-        #     {
-        #         "fit_kwargs": {
-        #             "num_bag_folds": 8,
-        #             "num_bag_sets": 1,
-        #             "fit_weighted_ensemble": False,
-        #             "calibrate": False,
-        #             "verbosity": 2,
-        #             "hyperparameters": {
-        #                 RealMLPModel: {
-        #                     "random_state": 0,
-        #                     "use_early_stopping": False,
-        #                     "use_ls": "auto",
-        #                     "use_roc_auc_to_stop": True,
-        #                 },
-        #             },
-        #         }
-        #     },
-        # ),
-        # (
-        #     "RealMLP_c2_BAG_L1_AutoLS_AUCStop_121_bool_to_cat",  # 2025/02/05 num_cpus=192, pytabkit==1.2.1
-        #     AGWrapper,
-        #     {
-        #         "fit_kwargs": {
-        #             "num_bag_folds": 8,
-        #             "num_bag_sets": 1,
-        #             "fit_weighted_ensemble": False,
-        #             "calibrate": False,
-        #             "verbosity": 2,
-        #             "hyperparameters": {
-        #                 RealMLPModel: {
-        #                     "random_state": 0,
-        #                     "use_early_stopping": False,
-        #                     "use_ls": "auto",
-        #                     "use_roc_auc_to_stop": True,
-        #                     "bool_to_cat": True,
-        #                 },
-        #             },
-        #         }
-        #     },
-        # ),
-        # (
-        #     "RealMLP_c2_BAG_L1_AutoLS_AUCStop_121_bool_to_cat_false",  # 2025/02/05 num_cpus=192, pytabkit==1.2.1
-        #     AGWrapper,
-        #     {
-        #         "fit_kwargs": {
-        #             "num_bag_folds": 8,
-        #             "num_bag_sets": 1,
-        #             "fit_weighted_ensemble": False,
-        #             "calibrate": False,
-        #             "verbosity": 2,
-        #             "hyperparameters": {
-        #                 RealMLPModel: {
-        #                     "random_state": 0,
-        #                     "use_early_stopping": False,
-        #                     "use_ls": "auto",
-        #                     "use_roc_auc_to_stop": True,
-        #                     "bool_to_cat": False,
-        #                     "impute_bool": False,
-        #                 },
-        #             },
-        #         }
-        #     },
-        # ),
-
-        # (
-        #     "RealMLP_c2_BAG_L1_AutoLS_AUCStop_121_bool_to_cat2",  # 2025/02/05 num_cpus=192, pytabkit==1.2.1
-        #     AGWrapper,
-        #     {
-        #         "fit_kwargs": {
-        #             "num_bag_folds": 8,
-        #             "num_bag_sets": 1,
-        #             "fit_weighted_ensemble": False,
-        #             "calibrate": False,
-        #             "verbosity": 2,
-        #             "hyperparameters": {
-        #                 RealMLPModel: {
-        #                     "random_state": 0,
-        #                     "use_early_stopping": False,
-        #                     "use_ls": "auto",
-        #                     "use_roc_auc_to_stop": True,
-        #                     "bool_to_cat": True,
-        #                     "impute_bool": False,
-        #                 },
-        #             },
-        #         }
-        #     },
-        # ),
-        # (
-        #     "RealMLP_c2_BAG_L1_AutoLS_AUCStop_121_bool_to_cat_false2",  # 2025/02/05 num_cpus=192, pytabkit==1.2.1
-        #     AGWrapper,
-        #     {
-        #         "fit_kwargs": {
-        #             "num_bag_folds": 8,
-        #             "num_bag_sets": 1,
-        #             "fit_weighted_ensemble": False,
-        #             "calibrate": False,
-        #             "verbosity": 2,
-        #             "hyperparameters": {
-        #                 RealMLPModel: {
-        #                     "random_state": 0,
-        #                     "use_early_stopping": False,
-        #                     "use_ls": "auto",
-        #                     "use_roc_auc_to_stop": True,
-        #                     "bool_to_cat": False,
-        #                     "impute_bool": False,
-        #                 },
-        #             },
-        #         }
-        #     },
-        # ),
-        # (
-        #     "RealMLP_c2_BAG_L1_AutoLS_bool_to_cat",  # 2025/02/05 num_cpus=192, pytabkit==1.2.1
-        #     AGWrapper,
-        #     {
-        #         "fit_kwargs": {
-        #             "num_bag_folds": 8,
-        #             "num_bag_sets": 1,
-        #             "fit_weighted_ensemble": False,
-        #             "calibrate": False,
-        #             "verbosity": 2,
-        #             "hyperparameters": {
-        #                 RealMLPModel: {
-        #                     "random_state": 0,
-        #                     "use_early_stopping": False,
-        #                     "use_ls": "auto",
-        #                     "use_roc_auc_to_stop": False,
-        #                     "bool_to_cat": True,
-        #                     "impute_bool": False,
-        #                 },
-        #             },
-        #         }
-        #     },
-        # ),
-        # (
-        #     "RealMLP_c2_BAG_L1_AutoLS_impute_true",  # 2025/02/05 num_cpus=192, pytabkit==1.2.1
-        #     AGWrapper,
-        #     {
-        #         "fit_kwargs": {
-        #             "num_bag_folds": 8,
-        #             "num_bag_sets": 1,
-        #             "fit_weighted_ensemble": False,
-        #             "calibrate": False,
-        #             "verbosity": 2,
-        #             "hyperparameters": {
-        #                 RealMLPModel: {
-        #                     "random_state": 0,
-        #                     "use_early_stopping": False,
-        #                     "use_ls": "auto",
-        #                     "use_roc_auc_to_stop": False,
-        #                     "bool_to_cat": False,
-        #                     "impute_bool": True,
-        #                 },
-        #             },
-        #         }
-        #     },
-        # ),
-        # (
-        #     "RealMLP_c2_BAG_L1_AutoLS_bool_to_cat_impute_true",  # 2025/02/05 num_cpus=192, pytabkit==1.2.1
-        #     AGWrapper,
-        #     {
-        #         "fit_kwargs": {
-        #             "num_bag_folds": 8,
-        #             "num_bag_sets": 1,
-        #             "fit_weighted_ensemble": False,
-        #             "calibrate": False,
-        #             "verbosity": 2,
-        #             "hyperparameters": {
-        #                 RealMLPModel: {
-        #                     "random_state": 0,
-        #                     "use_early_stopping": False,
-        #                     "use_ls": "auto",
-        #                     "use_roc_auc_to_stop": False,
-        #                     "bool_to_cat": True,
-        #                     "impute_bool": True,
-        #                 },
-        #             },
-        #         }
-        #     },
-        # ),
-
-        # FIXME: Crashes on some datasets... Fixed by "RealMLP_c2_BAG_L1_AutoLS_AUCStop_boolcat_impF_naT"?
-        # (
-        #     "RealMLP_c2_BAG_L1_AutoLS_AUCStop_boolcat_imputeF",  # 2025/02/05 num_cpus=192, pytabkit==1.2.1
-        #     AGWrapper,
-        #     {
-        #         "fit_kwargs": {
-        #             "num_bag_folds": 8,
-        #             "num_bag_sets": 1,
-        #             "fit_weighted_ensemble": False,
-        #             "calibrate": False,
-        #             "verbosity": 2,
-        #             "hyperparameters": {
-        #                 RealMLPModel: {
-        #                     "random_state": 0,
-        #                     "use_early_stopping": False,
-        #                     "use_ls": "auto",
-        #                     "use_roc_auc_to_stop": True,
-        #                     "bool_to_cat": True,
-        #                     "impute_bool": False,
-        #                 },
-        #             },
-        #         }
-        #     },
-        # ),
-        #
-        # TODO: CRASHES? Same as above
-        # (
-        #     "RealMLP_c2_BAG_L1_AutoLS_AUCStop_boolcat_imputeT",  # 2025/02/05 num_cpus=192, pytabkit==1.2.1
-        #     AGWrapper,
-        #     {
-        #         "fit_kwargs": {
-        #             "num_bag_folds": 8,
-        #             "num_bag_sets": 1,
-        #             "fit_weighted_ensemble": False,
-        #             "calibrate": False,
-        #             "verbosity": 2,
-        #             "hyperparameters": {
-        #                 RealMLPModel: {
-        #                     "random_state": 0,
-        #                     "use_early_stopping": False,
-        #                     "use_ls": "auto",
-        #                     "use_roc_auc_to_stop": True,
-        #                     "bool_to_cat": True,
-        #                     "impute_bool": True,
-        #                 },
-        #             },
-        #         }
-        #     },
-        # ),
-        (
-            "RealMLP_c2_BAG_L1_AutoLS_AUCStop_boolcat_impF_naT",  # 2025/02/07 num_cpus=192, pytabkit==1.2.1
-            AGWrapper,
-            {
-                "fit_kwargs": {
-                    "num_bag_folds": 8,
-                    "num_bag_sets": 1,
-                    "fit_weighted_ensemble": False,
-                    "calibrate": False,
-                    "verbosity": 2,
-                    "hyperparameters": {
-                        RealMLPModel: {
-                            "random_state": 0,
-                            "use_early_stopping": False,
-                            "use_ls": "auto",
-                            "use_roc_auc_to_stop": True,
-                            "bool_to_cat": True,
-                            "impute_bool": False,
-                            "name_categories": True,
-                        },
-                    },
-                }
+        AGModelBagExperiment(  # 2025/02/07 num_cpus=192, pytabkit==1.2.1
+            name="RealMLP_c2_BAG_L1_AutoLS_AUCStop_boolcat_impF_naT",
+            model_cls=RealMLPModel,
+            model_hyperparameters={
+                "random_state": 0,
+                "use_early_stopping": False,
+                "use_ls": "auto",
+                "use_roc_auc_to_stop": True,
+                "bool_to_cat": True,
+                "impute_bool": False,
+                "name_categories": True,
             },
         ),
-        # (
-        #     "RealMLP_c2_BAG_L1_AutoLS_AUCStop_impF_naT",  # 2025/02/07 num_cpus=192, pytabkit==1.2.1
-        #     AGWrapper,
-        #     {
-        #         "fit_kwargs": {
-        #             "num_bag_folds": 8,
-        #             "num_bag_sets": 1,
-        #             "fit_weighted_ensemble": False,
-        #             "calibrate": False,
-        #             "verbosity": 2,
-        #             "hyperparameters": {
-        #                 RealMLPModel: {
-        #                     "random_state": 0,
-        #                     "use_early_stopping": False,
-        #                     "use_ls": "auto",
-        #                     "use_roc_auc_to_stop": True,
-        #                     "bool_to_cat": False,
-        #                     "impute_bool": False,
-        #                     "name_categories": True,
-        #                 },
-        #             },
-        #         }
-        #     },
-        # ),
-        (
-            "RealMLP_c2_BAG_L1_TD",  # 2025/02/12 num_cpus=192, pytabkit==1.2.1
-            AGWrapper,
-            {
-                "fit_kwargs": {
-                    "num_bag_folds": 8,
-                    "num_bag_sets": 1,
-                    "fit_weighted_ensemble": False,
-                    "calibrate": False,
-                    "verbosity": 2,
-                    "hyperparameters": {
-                        RealMLPModel: {
-                            "random_state": 0,
-                            "use_early_stopping": False,
-                            "use_ls": "auto",
-                            "use_roc_auc_to_stop": True,
-                            "bool_to_cat": True,
-                            "impute_bool": False,
-                            "name_categories": True,
-                            "td_s_reg": False,
-                        },
-                    },
-                }
+        AGModelBagExperiment(  # 2025/02/12 num_cpus=192, pytabkit==1.2.1
+            name="RealMLP_c2_BAG_L1_TD",
+            model_cls=RealMLPModel,
+            model_hyperparameters={
+                "random_state": 0,
+                "use_early_stopping": False,
+                "use_ls": "auto",
+                "use_roc_auc_to_stop": True,
+                "bool_to_cat": True,
+                "impute_bool": False,
+                "name_categories": True,
+                "td_s_reg": False,
             },
         ),
-
     ]
 
-    # TODO: Make lazy load of dataset in case all experiments are complete for a given dataset
-    repo: EvaluationRepository = ExperimentBatchRunner(
+    exp_batch_runner = ExperimentBatchRunner(
         expname=expname,
         task_metadata=repo_og.task_metadata,
         cache_path_format="task_first",
-    ).generate_repo_from_experiments(
+    )
+
+    results_lst = exp_batch_runner.load_results(
+        methods=methods,
         datasets=datasets,
         folds=folds,
-        methods=methods,
-        ignore_cache=ignore_cache,
     )
+
+    # results_lst = exp_batch_runner.run(
+    #     methods=methods,
+    #     datasets=datasets,
+    #     folds=folds,
+    #     ignore_cache=ignore_cache,
+    # )
+
+    repo = exp_batch_runner.repo_from_results(results_lst=results_lst)
 
     # TODO: repo.configs_type should not be None for custom methods
     repo.print_info()
