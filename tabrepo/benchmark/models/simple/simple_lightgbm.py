@@ -5,7 +5,7 @@ import pandas as pd
 from tabrepo.benchmark.models.wrapper.abstract_class import AbstractExecModel
 
 
-class CustomLGBM(AbstractExecModel):
+class SimpleLightGBM(AbstractExecModel):
     def __init__(self, hyperparameters: dict | None = None, **kwargs):
         super().__init__(**kwargs)
         if hyperparameters is None:
