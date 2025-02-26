@@ -1,5 +1,5 @@
 methods:
-  - name: "RealMLP_c1_BAG_L1_v4_noes_r0"
+  - name: "RealMLP_c1_BAG_L1_v4_noes_r0_AWS"
     wrapper_class: "AGWrapper"
     fit_kwargs:
       num_bag_folds: 8

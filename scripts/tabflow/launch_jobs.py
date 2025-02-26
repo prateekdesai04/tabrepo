@@ -1,6 +1,5 @@
 import boto3
 import sagemaker
-import re
 import yaml
 import argparse
 import json
@@ -9,10 +8,11 @@ import time
 from datetime import datetime
 from pathlib import Path
 from tabrepo import EvaluationRepository
+from utils import sanitize_job_name, check_s3_file_exists
 
 
 DOCKER_IMAGE_ALIASES = {
-    "mlflow-image": "ACCOUNT_ID.dkr.ecr.us-west-2.amazonaws.com/pmdesai:mlflow-tabrepo",
+    "mlflow-image": "097403188315.dkr.ecr.us-west-2.amazonaws.com/pmdesai:mlflow-tabrepo",
 }
 
 
@@ -22,8 +22,21 @@ class TrainingJobResourceManager:
         self.max_concurrent_jobs = max_concurrent_jobs
 
     def get_running_jobs_count(self):
-        response = self.sagemaker_client.list_training_jobs(StatusEquals='InProgress', MaxResults=100)
-        return len(response['TrainingJobSummaries'])
+        job_count = 0
+        next_token = None
+        while True:
+            if next_token:
+                response = self.sagemaker_client.list_training_jobs(StatusEquals='InProgress', MaxResults=100, NextToken=next_token)
+            else:
+                response = self.sagemaker_client.list_training_jobs(StatusEquals='InProgress', MaxResults=100)
+
+            job_count += len(response['TrainingJobSummaries'])
+            if 'NextToken' in response:
+                next_token = response['NextToken']
+            else:
+                break
+        
+        return job_count
 
     def wait_for_available_slot(self, poll_interval=30):
         while True:
@@ -35,36 +48,14 @@ class TrainingJobResourceManager:
             time.sleep(poll_interval)
 
 
-
-def sanitize_job_name(name: str) -> str:
-    """
-    Sanitize the job name to meet SageMaker requirements:
-    - Must be 1-63 characters long
-    - Must use only alphanumeric characters and hyphens
-    - Must start with a letter or number
-    - Must not end with a hyphen
-    """
-    # Replace invalid characters with hyphens
-    name = re.sub('[^a-zA-Z0-9-]', '-', name)
-    # Remove consecutive hyphens
-    name = re.sub('-+', '-', name)
-    # Remove leading/trailing hyphens
-    name = name.strip('-')
-    # Ensure it starts with a letter or number
-    if not name[0].isalnum():
-        name = 'j-' + name
-    # Truncate to 63 characters
-    return name[:63]
-
-
 def launch_jobs(
-        experiment_name: str = "tabflow",
+        experiment_name: str = "tabflow-test-cache",
         context_name: str = "D244_F3_C1530_30", # 30 datasets. To run larger, set to "D244_F3_C1530_200"
         entry_point: str = "evaluate.py",
         source_dir: str = ".",
         instance_type: str = "ml.m6i.4xlarge",
         docker_image_uri: str = "mlflow-image",
-        sagemaker_role: str = "arn:aws:iam::ACCOUNT_ID:role/service-role/AmazonSageMakerRole",
+        sagemaker_role: str = "arn:aws:iam::097403188315:role/service-role/AmazonSageMaker-ExecutionRole-20250128T153145",
         aws_profile: str | None = None,
         hyperparameters: dict = None,
         job_name: str = None,
@@ -74,6 +65,8 @@ def launch_jobs(
         folds: list = None,
         methods_file: str = "methods.yaml",
         max_concurrent_jobs: int = 30,
+        s3_bucket: str = "prateek-ag",
+        add_timestamp: bool = False,
 ) -> None:
     """
     Launch multiple SageMaker training jobs.
@@ -94,14 +87,19 @@ def launch_jobs(
         folds: List of folds to evaluate
         methods_file: Path to the YAML file containing methods
         max_concurrent_jobs: Maximum number of concurrent jobs, based on account limit
+        S3 bucket: S3 bucket to store the results
+        add_timestamp: Whether to add a timestamp to the experiment name
     """
-    timestamp = datetime.now().strftime("%d-%b-%Y-%H:%M:%S.%f")[:-3]
-    experiment_name = f"{experiment_name}-{timestamp}"
+    
+    if add_timestamp:
+        timestamp = datetime.now().strftime("%d-%b-%Y-%H:%M:%S.%f")[:-3]
+        experiment_name = f"{experiment_name}-{timestamp}"
 
     # Create a SageMaker client session
     boto_session = boto3.Session(profile_name=aws_profile) if aws_profile else boto3.Session()
     sagemaker_client = boto_session.client('sagemaker')
     sagemaker_session = sagemaker.Session(boto_session=boto_session)
+    s3_client = boto_session.client('s3')
 
     # Initialize the resource manager
     resource_manager = TrainingJobResourceManager(sagemaker_client=sagemaker_client, max_concurrent_jobs=max_concurrent_jobs)
@@ -135,10 +133,17 @@ def launch_jobs(
             for fold in folds:
                 for method in methods:
 
+                    method_name, wrapper_class, fit_kwargs = method
+                    cache_name = f"{experiment_name}/data/tasks/{repo_og.dataset_to_tid(dataset)}/{fold}/{method_name}/results.pkl"
+
+                    if check_s3_file_exists(s3_client=s3_client, bucket=s3_bucket, cache_name=cache_name):
+                        print(f"Cache exists for {method_name} on dataset {dataset} fold {fold}. Skipping job launch.")
+                        print(f"Cache path: s3://{s3_bucket}/{cache_name}\n")
+                        continue
+
                     current_jobs = resource_manager.wait_for_available_slot()
                     print(f"\nSlot available. Currently running {current_jobs}/{max_concurrent_jobs} jobs")
 
-                    method_name, wrapper_class, fit_kwargs = method
                     # Create a unique job name
                     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
                     base_name = f"{dataset[:4]}-f{fold}-{method_name[:4]}-{timestamp}"
@@ -159,6 +164,7 @@ def launch_jobs(
                         "method_name": method_name,
                         "wrapper_class": wrapper_class,
                         "fit_kwargs": f"'{json.dumps(fit_kwargs)}'",
+                        "s3_bucket": s3_bucket,
                     })
 
                     # Create the estimator
@@ -188,9 +194,13 @@ def launch_jobs(
 def main():
     """Entrypoint for CLI"""
     parser = argparse.ArgumentParser()
+    parser.add_argument('--experiment_name', type=str, required=False, help="Name of the experiment")
+    parser.add_argument('--context_name', type=str, required=False, help="Name of the context")
     parser.add_argument('--datasets', nargs='+', type=str, required=True, help="List of datasets to evaluate")
     parser.add_argument('--folds', nargs='+', type=int, required=True, help="List of folds to evaluate")
     parser.add_argument('--methods_file', type=str, required=True, help="Path to the YAML file containing methods")
+    parser.add_argument('--s3_bucket', type=str, required=False, help="S3 bucket for the experiment")
+    parser.add_argument('--add_timestamp', action='store_true', help="Add timestamp to the experiment name")
 
     args = parser.parse_args()
 
@@ -198,6 +208,7 @@ def main():
         datasets=args.datasets,
         folds=args.folds,
         methods_file=args.methods_file,
+        s3_bucket=args.s3_bucket,
     )
 
 
