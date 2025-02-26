@@ -20,7 +20,7 @@ class ExperimentRunner:
         fold: int,
         task_name: str,
         method: str,
-        fit_args: dict = None,
+        fit_args: dict | None = None,
         cleanup: bool = True,
     ):
         self.method_cls = method_cls
@@ -30,13 +30,13 @@ class ExperimentRunner:
         self.method = method
         self.fit_args = fit_args
         self.cleanup = cleanup
-        self.eval_metric_name = ag_eval_metric_map[self.task.problem_type]
+        self.eval_metric_name = ag_eval_metric_map[self.task.problem_type]  # FIXME: Don't hardcode eval metric
         self.eval_metric: Scorer = get_metric(metric=self.eval_metric_name, problem_type=self.task.problem_type)
         self.model = None
         self.X, self.y, self.X_test, self.y_test = self.task.get_train_test_split(fold=self.fold)
         self.label_cleaner = LabelCleaner.construct(problem_type=self.task.problem_type, y=self.y)
 
-    def init_method(self):
+    def init_method(self) -> AbstractExecModel:
         model = self.method_cls(
             problem_type=self.task.problem_type,
             eval_metric=self.eval_metric,
@@ -44,8 +44,8 @@ class ExperimentRunner:
         )
         return model
 
-    def run_model_fit(self):
-        return self.model.fit_custom(self.X, self.y, self.X_test)
+    def run_model_fit(self) -> dict:
+        return self.model.fit_custom(X=self.X, y=self.y, X_test=self.X_test)
 
     def run(self):
         out = self._run()
@@ -76,6 +76,9 @@ class ExperimentRunner:
         return obj.run()
 
     def _run(self):
+        utc_time = datetime.datetime.now(datetime.timezone.utc)
+        time_start_str = utc_time.strftime('%Y-%m-%d %H:%M:%S')
+        time_start = utc_time.timestamp()
         self.model = self.init_method()
         out = self.run_model_fit()
         out = self.post_fit(out=out)
@@ -85,14 +88,14 @@ class ExperimentRunner:
             y_pred_proba=out["probabilities"],
         )
         out = self.post_evaluate(out=out)
-        out["experiment_metadata"] = self.experiment_metadata()
+        out["experiment_metadata"] = self._experiment_metadata(time_start=time_start, time_start_str=time_start_str)
         out = self.convert_to_output(out=out)
         return out
 
-    def post_fit(self, out):
+    def post_fit(self, out: dict) -> dict:
         return out
 
-    def post_evaluate(self, out):
+    def post_evaluate(self, out: dict) -> dict:
         out["framework"] = self.method
         out["dataset"] = self.task_name
         out["tid"] = self.task.task_id
@@ -110,23 +113,19 @@ class ExperimentRunner:
             out["method_metadata"] = self.model.get_metadata()
         return out
 
-    # TODO: Record wall clock time for experiment?
-    #  time_start / time_end
-    def experiment_metadata(self) -> dict:
+    def _experiment_metadata(self, time_start: float, time_start_str: str) -> dict:
         metadata = {}
         metadata["experiment_cls"] = self.__class__.__name__
         metadata["method_cls"] = self.method_cls.__name__
-        utc_time = datetime.datetime.now(datetime.timezone.utc)
-        utc_time_string = utc_time.strftime('%Y-%m-%d %H:%M:%S')
-        utc_time_float = utc_time.timestamp()
-        metadata["time_str"] = utc_time_string
-        metadata["time_float"] = utc_time_float
+        time_end = datetime.datetime.now(datetime.timezone.utc).timestamp()
+        metadata["time_start"] = time_start
+        metadata["time_end"] = time_end
+        metadata["total_duration"] = time_end - time_start
+        metadata["time_start_str"] = time_start_str
         return metadata
 
-    def model_info(self):
-        self.model.predictor.model_info(self.model.predictor.model_best)
-
-    def convert_to_output(self, out):
+    # FIXME: outdated
+    def convert_to_output(self, out: dict):
         out.pop("predictions")
         out.pop("probabilities")
         out.pop("simulation_artifacts")
@@ -140,7 +139,12 @@ class ExperimentRunner:
 
         return df_results
 
-    def evaluate(self, y_true, y_pred, y_pred_proba):
+    def evaluate(
+        self,
+        y_true: pd.Series,
+        y_pred: pd.Series,
+        y_pred_proba: pd.Series | pd.DataFrame | None,
+    ) -> float:
         return evaluate(
             y_true=y_true,
             y_pred=y_pred,
@@ -155,7 +159,7 @@ class ExperimentRunner:
 
 
 class OOFExperimentRunner(ExperimentRunner):
-    def post_evaluate(self, out):
+    def post_evaluate(self, out: dict) -> dict:
         out = super().post_evaluate(out=out)
         if self.model.can_get_oof:
             simulation_artifact = self.model.get_oof()
@@ -185,7 +189,7 @@ class OOFExperimentRunner(ExperimentRunner):
         out["simulation_artifacts"] = simulation_artifacts
         return out
 
-    def convert_to_output(self, out):
+    def convert_to_output(self, out: dict) -> dict:
         ignored_columns = [
             "predictions",
             "probabilities",
@@ -207,7 +211,7 @@ class OOFExperimentRunner(ExperimentRunner):
         return out
 
 
-def evaluate(y_true: pd.Series, y_pred: pd.Series, y_pred_proba: pd.DataFrame, scorer: Scorer, problem_type: str, label_cleaner: LabelCleaner = None,):
+def evaluate(y_true: pd.Series, y_pred: pd.Series, y_pred_proba: pd.DataFrame, scorer: Scorer, problem_type: str, label_cleaner: LabelCleaner = None) -> float:
     if label_cleaner is None:
         label_cleaner = LabelCleanerDummy(problem_type=problem_type)
     y_true = label_cleaner.transform(y_true)

@@ -76,22 +76,43 @@ class Experiment:
 
 # convenience wrapper
 class AGModelExperiment(Experiment):
+    """
+    Parameters
+    ----------
+    name
+    model_cls
+    model_hyperparameters
+    time_limit
+    raise_on_model_failure: bool, default True
+        By default sets raise_on_model_failure to True
+        so that any AutoGluon model failure will be raised in a debugger friendly manner.
+    **method_kwargs
+    """
+
     def __init__(
         self,
         name: str,
         model_cls: Type[AbstractModel],
         model_hyperparameters: dict,
-        time_limit: int | None = None,
+        time_limit: float | int | None = None,
+        raise_on_model_failure: bool = True,
         **method_kwargs,
     ):
         if time_limit is not None:
-            assert isinstance(time_limit, int)
+            assert isinstance(time_limit, (float, int))
             assert time_limit > 0
         if "fit_kwargs" in method_kwargs:
-            assert "time_limit" not in method_kwargs["fit_kwargs"], f"Set `time_limit` directly in {self.__class__.__name__} rather than in `fit_kwargs`"
+            assert "time_limit" not in method_kwargs["fit_kwargs"], \
+                f"Set `time_limit` directly in {self.__class__.__name__} rather than in `fit_kwargs`"
         assert isinstance(model_hyperparameters, dict)
         if time_limit is not None:
             model_hyperparameters = self._insert_time_limit(model_hyperparameters=model_hyperparameters, time_limit=time_limit, method_kwargs=method_kwargs)
+        if "fit_kwargs" not in method_kwargs:
+            method_kwargs["fit_kwargs"] = {}
+        method_kwargs["fit_kwargs"] = copy.deepcopy(method_kwargs["fit_kwargs"])
+        assert "raise_on_model_failure" not in method_kwargs["fit_kwargs"], \
+            f"Set `raise_on_model_failure` directly in {self.__class__.__name__} rather than in `fit_kwargs`"
+        method_kwargs["fit_kwargs"]["raise_on_model_failure"] = raise_on_model_failure
         super().__init__(
             name=name,
             method_cls=AGSingleWrapper,
@@ -136,7 +157,7 @@ class AGModelBagExperiment(AGModelExperiment):
         name: str,
         model_cls: Type[AbstractModel],
         model_hyperparameters: dict,
-        time_limit: int | None = None,
+        time_limit: float | int | None = None,
         num_bag_folds: int = 8,
         num_bag_sets: int = 1,
         **method_kwargs,
