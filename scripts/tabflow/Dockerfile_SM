@@ -1,4 +1,10 @@
-FROM 763104351884.dkr.ecr.us-west-2.amazonaws.com/autogluon-training:1.1.1-cpu-py311-ubuntu20.04
+# FROM 763104351884.dkr.ecr.us-west-2.amazonaws.com/autogluon-training:1.1.1-cpu-py311-ubuntu20.04
+FROM 763104351884.dkr.ecr.us-west-2.amazonaws.com/pytorch-training:2.5.1-cpu-py311-ubuntu22.04-sagemaker
+
+# Source install Autogluon Mainline - get changes after refactor
+RUN git clone https://github.com/autogluon/autogluon
+RUN cd autogluon && ./full_install.sh
+RUN cd ..
 
 # Copy the contents of the tab-benchmark folder to the container - run from tabflow
 COPY ../ .

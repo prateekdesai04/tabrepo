@@ -1,6 +1,5 @@
 import boto3
 import sagemaker
-import yaml
 import argparse
 import json
 import time
@@ -8,7 +7,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 from tabrepo import EvaluationRepository
-from utils import sanitize_job_name, check_s3_file_exists
+from utils import sanitize_job_name, check_s3_file_exists, yaml_to_methods
 
 
 DOCKER_IMAGE_ALIASES = {
@@ -22,21 +21,23 @@ class TrainingJobResourceManager:
         self.max_concurrent_jobs = max_concurrent_jobs
 
     def get_running_jobs_count(self):
-        job_count = 0
-        next_token = None
-        while True:
-            if next_token:
-                response = self.sagemaker_client.list_training_jobs(StatusEquals='InProgress', MaxResults=100, NextToken=next_token)
-            else:
-                response = self.sagemaker_client.list_training_jobs(StatusEquals='InProgress', MaxResults=100)
+        response = self.sagemaker_client.list_training_jobs(StatusEquals='InProgress', MaxResults=100)
+        return len(response['TrainingJobSummaries'])
+        # job_count = 0
+        # next_token = None
+        # while True:
+        #     if next_token:
+        #         response = self.sagemaker_client.list_training_jobs(StatusEquals='InProgress', MaxResults=100, NextToken=next_token)
+        #     else:
+        #         response = self.sagemaker_client.list_training_jobs(StatusEquals='InProgress', MaxResults=100)
 
-            job_count += len(response['TrainingJobSummaries'])
-            if 'NextToken' in response:
-                next_token = response['NextToken']
-            else:
-                break
+        #     job_count += len(response['TrainingJobSummaries'])
+        #     if 'NextToken' in response:
+        #         next_token = response['NextToken']
+        #     else:
+        #         break
         
-        return job_count
+        # return job_count
 
     def wait_for_available_slot(self, poll_interval=30):
         while True:
@@ -58,7 +59,6 @@ def launch_jobs(
         sagemaker_role: str = "arn:aws:iam::097403188315:role/service-role/AmazonSageMaker-ExecutionRole-20250128T153145",
         aws_profile: str | None = None,
         hyperparameters: dict = None,
-        job_name: str = None,
         keep_alive_period_in_seconds: int = 3600,
         limit_runtime: int = 24 * 60 * 60,
         datasets: list = None,
@@ -80,7 +80,6 @@ def launch_jobs(
         sagemaker_role: AWS IAM role for SageMaker
         aws_profile: AWS profile name
         hyperparameters: Dictionary of hyperparameters to pass to the training script
-        job_name: Name for the training job
         keep_alive_period_in_seconds: Idle time before terminating the instance 
         limit_runtime: Maximum running time in seconds
         datasets: List of datasets to evaluate
@@ -104,11 +103,7 @@ def launch_jobs(
     # Initialize the resource manager
     resource_manager = TrainingJobResourceManager(sagemaker_client=sagemaker_client, max_concurrent_jobs=max_concurrent_jobs)
 
-    # Load methods from YAML file
-    with open(methods_file, 'r') as file:
-        methods_data = yaml.safe_load(file)
-
-    methods = [(method["name"], method["wrapper_class"], method["fit_kwargs"]) for method in methods_data["methods"]]
+    methods = yaml_to_methods(methods_file=methods_file)
 
     repo_og: EvaluationRepository = EvaluationRepository.from_context(context_name, cache=True)
     
@@ -133,9 +128,10 @@ def launch_jobs(
             for fold in folds:
                 for method in methods:
 
-                    method_name, wrapper_class, fit_kwargs = method
-                    cache_name = f"{experiment_name}/data/tasks/{repo_og.dataset_to_tid(dataset)}/{fold}/{method_name}/results.pkl"
+                    method_name = method['name']
+                    cache_name = f"{experiment_name}/data/{method_name}/{repo_og.dataset_to_tid(dataset)}/{fold}/results.pkl"
 
+                    # Change this check based on literals name_first or task_first
                     if check_s3_file_exists(s3_client=s3_client, bucket=s3_bucket, cache_name=cache_name):
                         print(f"Cache exists for {method_name} on dataset {dataset} fold {fold}. Skipping job launch.")
                         print(f"Cache path: s3://{s3_bucket}/{cache_name}\n")
@@ -162,8 +158,9 @@ def launch_jobs(
                         "dataset": dataset,
                         "fold": fold,   # NOTE: Can be a 'str' as well, refer to Estimators in SM docs
                         "method_name": method_name,
-                        "wrapper_class": wrapper_class,
-                        "fit_kwargs": f"'{json.dumps(fit_kwargs)}'",
+                        # "wrapper_class": wrapper_class,
+                        # "fit_kwargs": f"'{json.dumps(fit_kwargs)}'",
+                        "method": f"'{json.dumps(method)}'",
                         "s3_bucket": s3_bucket,
                     })
 
@@ -194,17 +191,19 @@ def launch_jobs(
 def main():
     """Entrypoint for CLI"""
     parser = argparse.ArgumentParser()
-    parser.add_argument('--experiment_name', type=str, required=False, help="Name of the experiment")
-    parser.add_argument('--context_name', type=str, required=False, help="Name of the context")
+    parser.add_argument('--experiment_name', type=str, default="tabflow-test-cache", help="Name of the experiment")
+    parser.add_argument('--context_name', type=str, default="D244_F3_C1530_30", help="Name of the context")
     parser.add_argument('--datasets', nargs='+', type=str, required=True, help="List of datasets to evaluate")
     parser.add_argument('--folds', nargs='+', type=int, required=True, help="List of folds to evaluate")
     parser.add_argument('--methods_file', type=str, required=True, help="Path to the YAML file containing methods")
-    parser.add_argument('--s3_bucket', type=str, required=False, help="S3 bucket for the experiment")
+    parser.add_argument('--s3_bucket', type=str, default="prateek-ag", help="S3 bucket for the experiment")
     parser.add_argument('--add_timestamp', action='store_true', help="Add timestamp to the experiment name")
 
     args = parser.parse_args()
 
     launch_jobs(
+        experiment_name=args.experiment_name,
+        context_name=args.context_name,
         datasets=args.datasets,
         folds=args.folds,
         methods_file=args.methods_file,
