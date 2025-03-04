@@ -28,15 +28,21 @@ class Experiment:
         name: str,
         method_cls: Type[AbstractExecModel],
         method_kwargs: dict,
+        *,
         experiment_cls: Type[ExperimentRunner] = OOFExperimentRunner,
+        experiment_kwargs: dict = None,
     ):
+        if experiment_kwargs is None:
+            experiment_kwargs = {}
         assert isinstance(name, str)
         assert len(name) > 0, "Name cannot be empty!"
         assert isinstance(method_kwargs, dict)
+        assert isinstance(experiment_kwargs, dict)
         self.name = name
         self.method_cls = method_cls
         self.method_kwargs = method_kwargs
         self.experiment_cls = experiment_cls
+        self.experiment_kwargs = experiment_kwargs
 
     def construct_method(self, problem_type: str, eval_metric) -> AbstractExecModel:
         return self.method_cls(
@@ -65,6 +71,7 @@ class Experiment:
                     task_name=task_name,
                     method=self.name,
                     fit_args=self.method_kwargs,
+                    **self.experiment_kwargs,
                 ),
                 ignore_cache=ignore_cache,
             )
@@ -96,6 +103,7 @@ class AGModelExperiment(Experiment):
         model_hyperparameters: dict,
         time_limit: float | int | None = None,
         raise_on_model_failure: bool = True,
+        experiment_kwargs: dict = None,
         **method_kwargs,
     ):
         if time_limit is not None:
@@ -122,6 +130,7 @@ class AGModelExperiment(Experiment):
                 **method_kwargs,
             },
             experiment_cls=OOFExperimentRunner,
+            experiment_kwargs=experiment_kwargs,
         )
 
     def _insert_time_limit(self, model_hyperparameters: dict, time_limit: int | None, method_kwargs: dict) -> dict:
@@ -160,6 +169,7 @@ class AGModelBagExperiment(AGModelExperiment):
         time_limit: float | int | None = None,
         num_bag_folds: int = 8,
         num_bag_sets: int = 1,
+        experiment_kwargs: dict = None,
         **method_kwargs,
     ):
         assert isinstance(num_bag_folds, int)
@@ -179,5 +189,6 @@ class AGModelBagExperiment(AGModelExperiment):
             model_cls=model_cls,
             model_hyperparameters=model_hyperparameters,
             time_limit=time_limit,
+            experiment_kwargs=experiment_kwargs,
             **method_kwargs,
         )
