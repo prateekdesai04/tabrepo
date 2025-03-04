@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import datetime
-from typing import Type
+from typing import Literal, Type
 
 import pandas as pd
 
@@ -22,7 +22,9 @@ class ExperimentRunner:
         method: str,
         fit_args: dict | None = None,
         cleanup: bool = True,
+        input_format: Literal["openml", "csv"] = "openml",
     ):
+        assert input_format in ["openml", "csv"]
         self.method_cls = method_cls
         self.task = task
         self.fold = fold
@@ -30,10 +32,14 @@ class ExperimentRunner:
         self.method = method
         self.fit_args = fit_args
         self.cleanup = cleanup
+        self.input_format = input_format
         self.eval_metric_name = ag_eval_metric_map[self.task.problem_type]  # FIXME: Don't hardcode eval metric
         self.eval_metric: Scorer = get_metric(metric=self.eval_metric_name, problem_type=self.task.problem_type)
         self.model = None
         self.X, self.y, self.X_test, self.y_test = self.task.get_train_test_split(fold=self.fold)
+        if input_format == "csv":
+            self.X = self.task.to_csv_format(X=self.X)
+            self.X_test = self.task.to_csv_format(X=self.X_test)
         self.label_cleaner = LabelCleaner.construct(problem_type=self.task.problem_type, y=self.y)
 
     def init_method(self) -> AbstractExecModel:
@@ -63,6 +69,7 @@ class ExperimentRunner:
         method: str,
         fit_args: dict = None,
         cleanup: bool = True,
+        input_format: Literal["openml", "csv"] = "openml",
     ):
         obj = cls(
             method_cls=method_cls,
@@ -72,6 +79,7 @@ class ExperimentRunner:
             method=method,
             fit_args=fit_args,
             cleanup=cleanup,
+            input_format=input_format,
         )
         return obj.run()
 
