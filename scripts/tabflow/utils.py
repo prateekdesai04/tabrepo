@@ -2,6 +2,9 @@ import re
 import yaml
 import boto3
 
+from tabrepo.benchmark.models.model_register import infer_model_cls
+
+
 def yaml_to_methods(methods_file: str) -> list:
     with open(methods_file, 'r') as file:
         methods_config = yaml.safe_load(file)
@@ -15,7 +18,8 @@ def parse_method(method_config: dict, context=None):
     # Convert string class names to actual class references
     # This assumes the classes are already defined or imported in evaluate.py
     if 'model_cls' in method_config:
-        method_config['model_cls'] = eval(method_config['model_cls'], context)
+        method_config["model_cls"] = infer_model_cls(method_config["model_cls"])
+        # method_config['model_cls'] = eval(method_config['model_cls'], context)
     if 'method_cls' in method_config:
         method_config['method_cls'] = eval(method_config['method_cls'], context)
     
