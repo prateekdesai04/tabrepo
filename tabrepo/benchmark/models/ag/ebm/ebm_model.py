@@ -121,10 +121,13 @@ class ExplainableBoostingMachineModel(AbstractModel):
         default_auxiliary_params = super()._get_default_auxiliary_params()
         extra_auxiliary_params = dict(
             valid_raw_types=["int", "float", "category"],
-            problem_types=[BINARY, MULTICLASS, REGRESSION],
         )
         default_auxiliary_params.update(extra_auxiliary_params)
         return default_auxiliary_params
+
+    @classmethod
+    def supported_problem_types(cls) -> list[str] | None:
+        return ["binary", "multiclass", "regression"]
 
     def _more_tags(self) -> dict:
         """EBMs do not yet support refit full."""
