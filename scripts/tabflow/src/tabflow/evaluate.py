@@ -5,11 +5,13 @@ import yaml
 import pandas as pd
 import json
 
-from utils import parse_method
+
+from tabflow.utils import parse_method
 from tabrepo import EvaluationRepository
 from tabrepo.benchmark.experiment import ExperimentBatchRunner, AGModelBagExperiment, Experiment
 from tabrepo.benchmark.models.simple import SimpleLightGBM
-from autogluon.tabular.models import LGBModel, XGBoostModel
+from autogluon.tabular.models import *
+from tabrepo.benchmark.models.ag import *
 
 # from tabrepo import EvaluationRepository, EvaluationRepositoryCollection, Evaluator
 # from tabrepo.benchmark.models.wrapper.AutoGluon_class import AGWrapper

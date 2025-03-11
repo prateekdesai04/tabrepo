@@ -3,49 +3,137 @@ import sagemaker
 import argparse
 import json
 import time
+import random
+import logging
 
+from botocore.config import Config
 from datetime import datetime
 from pathlib import Path
 from tabrepo import EvaluationRepository
-from utils import sanitize_job_name, check_s3_file_exists, yaml_to_methods
+from tabflow.utils import sanitize_job_name, check_s3_file_exists, yaml_to_methods
+
+logging.getLogger('botocore').setLevel(logging.ERROR)
+logging.getLogger('sagemaker').setLevel(logging.ERROR)
+logging.getLogger('boto3').setLevel(logging.ERROR)
 
 
 DOCKER_IMAGE_ALIASES = {
     "mlflow-image": "097403188315.dkr.ecr.us-west-2.amazonaws.com/pmdesai:mlflow-tabrepo",
 }
 
+def save_training_job_logs(sagemaker_client, s3_client, job_name, bucket, cache_path):
+    """
+    Retrieve logs for a completed SageMaker training job and save to S3.
+    
+    Args:
+        sagemaker_client: Boto3 SageMaker client
+        s3_client: Boto3 S3 client
+        job_name: Name of the SageMaker training job
+        bucket: S3 bucket name
+        cache_path: Path prefix where the logs should be saved (without the .log extension)
+    """
+    try:        
+        # Create CloudWatch logs client + standard log_group
+        cloudwatch_logs = boto3.client('logs')
+        log_group ='/aws/sagemaker/TrainingJobs'
+
+        response = cloudwatch_logs.describe_log_streams(
+            logGroupName=log_group,
+            logStreamNamePrefix=job_name
+        )
+
+        # Find the matching log stream
+        log_stream = None
+        for stream in response.get('logStreams', []):
+            if stream['logStreamName'].startswith(job_name):
+                log_stream = stream['logStreamName']
+                break
+        
+        if not log_stream:
+            print(f"No log stream found for job {job_name}")
+            return
+        
+        # Get the logs
+        logs_response = cloudwatch_logs.get_log_events(
+            logGroupName=log_group,
+            logStreamName=log_stream
+        )
+        
+        # Compile the log messages
+        log_content = ""
+        for event in logs_response['events']:
+            log_content += f"{event['message']}\n"
+        
+        # Continue retrieving logs if there are more
+        while 'nextForwardToken' in logs_response:
+            next_token = logs_response['nextForwardToken']
+            logs_response = cloudwatch_logs.get_log_events(
+                logGroupName=log_group,
+                logStreamName=log_stream,
+                nextToken=next_token
+            )
+            
+            # If no more new logs, break
+            if next_token == logs_response['nextForwardToken']:
+                break
+                
+            for event in logs_response['events']:
+                log_content += f"{event['message']}\n"
+        
+        # Save logs to S3
+        log_file_path = f"{cache_path}/full_log.log"
+        s3_client.put_object(
+            Body=log_content.encode('utf-8'),
+            Bucket=bucket,
+            Key=log_file_path
+        )
+        print(f"Logs saved to s3://{bucket}/{log_file_path}")
+   
+    except Exception as e:
+        logging.exception(f"Error saving logs for job {job_name}")
+        # print(f"Error saving logs for job {job_name}: {e}")
 
 class TrainingJobResourceManager:
     def __init__(self, sagemaker_client, max_concurrent_jobs):
         self.sagemaker_client = sagemaker_client
         self.max_concurrent_jobs = max_concurrent_jobs
+        self.job_names = []
+        self.job_cache_paths = {} # Job Name -> Training Log
 
-    def get_running_jobs_count(self):
-        response = self.sagemaker_client.list_training_jobs(StatusEquals='InProgress', MaxResults=100)
-        return len(response['TrainingJobSummaries'])
-        # job_count = 0
-        # next_token = None
-        # while True:
-        #     if next_token:
-        #         response = self.sagemaker_client.list_training_jobs(StatusEquals='InProgress', MaxResults=100, NextToken=next_token)
-        #     else:
-        #         response = self.sagemaker_client.list_training_jobs(StatusEquals='InProgress', MaxResults=100)
+    def add_job(self, job_name, cache_path):
+        self.job_names.append(job_name)
+        self.job_cache_paths[job_name] = cache_path
 
-        #     job_count += len(response['TrainingJobSummaries'])
-        #     if 'NextToken' in response:
-        #         next_token = response['NextToken']
-        #     else:
-        #         break
-        
-        # return job_count
+    def remove_completed_jobs(self, s3_client, s3_bucket):
+        completed_jobs = []
+        for job_name in self.job_names:
+            response = self.sagemaker_client.describe_training_job(TrainingJobName=job_name)
+            job_status = response['TrainingJobStatus']
+            if job_status in ['Completed', 'Failed', 'Stopped']:
+                save_training_job_logs(
+                    self.sagemaker_client, 
+                    s3_client, 
+                    job_name, 
+                    s3_bucket, 
+                    self.job_cache_paths[job_name]
+                )
+                completed_jobs.append(job_name)
+        for job_name in completed_jobs:
+            self.job_names.remove(job_name)
 
-    def wait_for_available_slot(self, poll_interval=30):
+    def wait_for_available_slot(self, s3_client, s3_bucket, poll_interval=10):
         while True:
-            print("\nTraining Jobs: ", self.get_running_jobs_count())
-            current_jobs = self.get_running_jobs_count()
-            if current_jobs < (self.max_concurrent_jobs):
-                return current_jobs
-            print(f"Currently running {current_jobs}/{self.max_concurrent_jobs} jobs. Waiting...")
+            self.remove_completed_jobs(s3_client=s3_client, s3_bucket=s3_bucket)
+            if len(self.job_names) < self.max_concurrent_jobs:
+                return len(self.job_names)
+            print(f"Currently running {len(self.job_names)}/{self.max_concurrent_jobs} jobs. Waiting...")
+            time.sleep(poll_interval)
+
+    def wait_for_all_jobs(self, s3_client, s3_bucket, poll_interval=10):
+        # Wait for a non-zero value
+        while self.job_names:
+            self.remove_completed_jobs(s3_client=s3_client, s3_bucket=s3_bucket)
+            print(f"Waiting for {len(self.job_names)} jobs to complete...")
             time.sleep(poll_interval)
 
 
@@ -53,7 +141,7 @@ def launch_jobs(
         experiment_name: str = "tabflow-test-cache",
         context_name: str = "D244_F3_C1530_30", # 30 datasets. To run larger, set to "D244_F3_C1530_200"
         entry_point: str = "evaluate.py",
-        source_dir: str = ".",
+        source_dir: str = str(Path(__file__).parent),
         instance_type: str = "ml.m6i.4xlarge",
         docker_image_uri: str = "mlflow-image",
         sagemaker_role: str = "arn:aws:iam::097403188315:role/service-role/AmazonSageMaker-ExecutionRole-20250128T153145",
@@ -65,8 +153,10 @@ def launch_jobs(
         folds: list = None,
         methods_file: str = "methods.yaml",
         max_concurrent_jobs: int = 30,
+        max_retry_attempts: int = 10,
         s3_bucket: str = "prateek-ag",
         add_timestamp: bool = False,
+        wait: bool = False,
 ) -> None:
     """
     Launch multiple SageMaker training jobs.
@@ -88,18 +178,28 @@ def launch_jobs(
         max_concurrent_jobs: Maximum number of concurrent jobs, based on account limit
         S3 bucket: S3 bucket to store the results
         add_timestamp: Whether to add a timestamp to the experiment name
+        wait: Whether to wait for all jobs to complete
     """
     
     if add_timestamp:
         timestamp = datetime.now().strftime("%d-%b-%Y-%H:%M:%S.%f")[:-3]
         experiment_name = f"{experiment_name}-{timestamp}"
 
-    # Create a SageMaker client session
+    # Create boto3 session
     boto_session = boto3.Session(profile_name=aws_profile) if aws_profile else boto3.Session()
-    sagemaker_client = boto_session.client('sagemaker')
-    sagemaker_session = sagemaker.Session(boto_session=boto_session)
-    s3_client = boto_session.client('s3')
-
+    # Create SageMaker session + retry config
+    retry_config = Config(
+        connect_timeout=5,
+        read_timeout=10,
+        retries={'max_attempts':max_retry_attempts,
+                'mode':'adaptive',
+                }
+    )
+    sagemaker_client = boto_session.client('sagemaker', config=retry_config)
+    sagemaker_session = sagemaker.Session(boto_session=boto_session, sagemaker_client=sagemaker_client)
+    # Create S3 client
+    s3_client = boto_session.client('s3', config=retry_config)
+    
     # Initialize the resource manager
     resource_manager = TrainingJobResourceManager(sagemaker_client=sagemaker_client, max_concurrent_jobs=max_concurrent_jobs)
 
@@ -129,15 +229,17 @@ def launch_jobs(
                 for method in methods:
 
                     method_name = method['name']
+                    cache_path = f"{experiment_name}/data/{method_name}/{repo_og.dataset_to_tid(dataset)}/{fold}"
+
                     cache_name = f"{experiment_name}/data/{method_name}/{repo_og.dataset_to_tid(dataset)}/{fold}/results.pkl"
 
                     # Change this check based on literals name_first or task_first
                     if check_s3_file_exists(s3_client=s3_client, bucket=s3_bucket, cache_name=cache_name):
                         print(f"Cache exists for {method_name} on dataset {dataset} fold {fold}. Skipping job launch.")
-                        print(f"Cache path: s3://{s3_bucket}/{cache_name}\n")
+                        print(f"Cache path: s3://{s3_bucket}/{cache_path}\n")
                         continue
 
-                    current_jobs = resource_manager.wait_for_available_slot()
+                    current_jobs = resource_manager.wait_for_available_slot(s3_client=s3_client, s3_bucket=s3_bucket)
                     print(f"\nSlot available. Currently running {current_jobs}/{max_concurrent_jobs} jobs")
 
                     # Create a unique job name
@@ -158,8 +260,6 @@ def launch_jobs(
                         "dataset": dataset,
                         "fold": fold,   # NOTE: Can be a 'str' as well, refer to Estimators in SM docs
                         "method_name": method_name,
-                        # "wrapper_class": wrapper_class,
-                        # "fit_kwargs": f"'{json.dumps(fit_kwargs)}'",
                         "method": f"'{json.dumps(method)}'",
                         "s3_bucket": s3_bucket,
                     })
@@ -180,9 +280,12 @@ def launch_jobs(
 
                     # Launch the training job
                     estimator.fit(wait=False, job_name=job_name)
+                    resource_manager.add_job(job_name=job_name, cache_path=cache_path)   # Get job_id from estimator, or use job Name?
                     total_launched_jobs += 1
-                    print(f"Launched job {total_launched_jobs} out of a total of {total_jobs}: {job_name}")
-                    # print(f"Launched training job: {estimator.latest_training_job.name}")
+                    print(f"Launched job {total_launched_jobs} out of a total of {total_jobs} concurrrent jobs: {job_name}\n")
+        
+        if wait:
+            resource_manager.wait_for_all_jobs(s3_client=s3_client, s3_bucket=s3_bucket)
     except Exception as e:
         print(f"Error launching jobs: {e}")
         raise
@@ -196,8 +299,11 @@ def main():
     parser.add_argument('--datasets', nargs='+', type=str, required=True, help="List of datasets to evaluate")
     parser.add_argument('--folds', nargs='+', type=int, required=True, help="List of folds to evaluate")
     parser.add_argument('--methods_file', type=str, required=True, help="Path to the YAML file containing methods")
+    parser.add_argument('--max_concurrent_jobs', type=int, default=50,
+                        help="Maximum number of concurrent jobs, based on account limit")
     parser.add_argument('--s3_bucket', type=str, default="prateek-ag", help="S3 bucket for the experiment")
     parser.add_argument('--add_timestamp', action='store_true', help="Add timestamp to the experiment name")
+    parser.add_argument('--wait', action='store_true', help="Wait for all jobs to complete")
 
     args = parser.parse_args()
 
@@ -207,7 +313,9 @@ def main():
         datasets=args.datasets,
         folds=args.folds,
         methods_file=args.methods_file,
+        max_concurrent_jobs=args.max_concurrent_jobs,
         s3_bucket=args.s3_bucket,
+        wait=args.wait,
     )
 
 
