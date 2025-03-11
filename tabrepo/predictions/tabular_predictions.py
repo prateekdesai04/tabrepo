@@ -257,6 +257,7 @@ class TabularPredictionsInMemory(TabularModelPredictions):
 
         return get_split(split, models)
 
+    # TODO: Improve exception logging if model is missing, refer to exception logging in MemMap version
     def _get_model_results(self, model: str, model_pred_probas: dict) -> np.array:
         return model_pred_probas[model]
 

@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import logging
+from typing import Literal
+
 import pandas as pd
 from sklearn.impute import SimpleImputer
 
 from autogluon.common.utils.pandas_utils import get_approximate_df_mem_usage
 from autogluon.common.utils.resource_utils import ResourceManager
-from autogluon.core.constants import BINARY, MULTICLASS, REGRESSION
 from autogluon.core.models import AbstractModel
 
 logger = logging.getLogger(__name__)
@@ -26,16 +27,20 @@ class RealMLPModel(AbstractModel):
         self._features_bool = None
         self._bool_to_cat = None
 
-    def get_model_cls(self, td_s_reg=True):
-        from pytabkit import RealMLP_TD_Classifier, RealMLP_TD_S_Regressor, RealMLP_TD_Regressor
+    def get_model_cls(self, default_hyperparameters: Literal["td", "td_s"] = "td"):
+        from pytabkit import RealMLP_TD_Classifier, RealMLP_TD_Regressor, RealMLP_TD_S_Classifier, RealMLP_TD_S_Regressor
 
+        assert default_hyperparameters in ["td", "td_s"]
         if self.problem_type in ['binary', 'multiclass']:
-            model_cls = RealMLP_TD_Classifier
-        else:
-            if td_s_reg:
-                model_cls = RealMLP_TD_S_Regressor  # FIXME FIXME FIXME
+            if default_hyperparameters == "td":
+                model_cls = RealMLP_TD_Classifier
             else:
+                model_cls = RealMLP_TD_S_Classifier
+        else:
+            if default_hyperparameters == "td":
                 model_cls = RealMLP_TD_Regressor
+            else:
+                model_cls = RealMLP_TD_S_Regressor
         return model_cls
 
     def _fit(
@@ -54,14 +59,12 @@ class RealMLPModel(AbstractModel):
 
         hyp = self._get_model_params()
 
-        # TODO: Remove eventually?
-        td_s_reg = hyp.pop("td_s_reg", True)
+        default_hyperparameters = hyp.pop("default_hyperparameters")
 
-        model_cls = self.get_model_cls(td_s_reg=td_s_reg)
+        model_cls = self.get_model_cls(default_hyperparameters=default_hyperparameters)
 
-        # TODO: Try "roc_auc": "1-auc_ovr_alt"
         metric_map = {
-            "roc_auc": "cross_entropy",
+            "roc_auc": "1-auc_ovr_alt",
             "accuracy": "class_error",
             "balanced_accuracy": "1-balanced_accuracy",
             "log_loss": "cross_entropy",
@@ -72,12 +75,7 @@ class RealMLPModel(AbstractModel):
             "mean_average_error": "mae",
         }
 
-        # FIXME: Temp to test the impact
-        use_roc_auc_to_stop = hyp.pop("use_roc_auc_to_stop", False)
-        if use_roc_auc_to_stop and self.eval_metric.name == "roc_auc":
-            val_metric_name = "1-auc_ovr_alt"
-        else:
-            val_metric_name = metric_map.get(self.stopping_metric.name, None)
+        val_metric_name = metric_map.get(self.stopping_metric.name, None)
 
         init_kwargs = dict()
 
@@ -97,9 +95,9 @@ class RealMLPModel(AbstractModel):
             hyp["use_early_stopping"] = False
             hyp["val_fraction"] = 0
 
-        bool_to_cat = hyp.pop("bool_to_cat", False)
+        bool_to_cat = hyp.pop("bool_to_cat", True)
         impute_bool = hyp.pop("impute_bool", True)
-        name_categories = hyp.pop("name_categories", False)
+        name_categories = hyp.pop("name_categories", True)
 
         # TODO: GPU
         self.model = model_cls(
@@ -169,29 +167,30 @@ class RealMLPModel(AbstractModel):
     def _set_default_params(self):
         default_params = dict(
             random_state=0,
-            use_early_stopping=True,
+
+            # Don't use early stopping by default, seems to work well without
+            use_early_stopping=False,
             early_stopping_additive_patience=40,
             early_stopping_multiplicative_patience=3,
 
             # verdict: use_ls="auto" is much better than None.
             use_ls="auto",
 
-            # verdict: use_roc_auc_to_stop=True is best
-            use_roc_auc_to_stop=False,  # TODO: Remove after testing
-
             # verdict: no impact, but makes more sense to be False.
-            impute_bool=True,  # FIXME: Remove after testing
+            impute_bool=False,
 
             # verdict: name_categories=True avoids random exceptions being raised in rare cases
-            name_categories=False,  # FIXME: Remove after testing
+            name_categories=True,
 
             # verdict: bool_to_cat=True is equivalent to False in terms of quality, but can be slightly faster in training time
             #  and slightly slower in inference time
-            bool_to_cat=False,  # FIXME: Remove after testing
+            bool_to_cat=True,
 
-            # FIXME: During early testing, accidentally was using TD_S for regression instead of TD.
-            #  If False, this uses TD instead of TD_S for regression.
-            td_s_reg=True,  # FIXME: Remove after testing
+            # verdict: use_roc_auc_to_stop=True is best
+            # use_roc_auc_to_stop=True,  # Tested and integrated directly, no longer a valid hyperparameter
+
+            # verdict: "td" is better than "td_s"
+            default_hyperparameters="td",  # options ["td", "td_s"]
         )
         for param, val in default_params.items():
             self._set_default_param_value(param, val)
@@ -200,10 +199,13 @@ class RealMLPModel(AbstractModel):
     def supported_problem_types(cls) -> list[str] | None:
         return ["binary", "multiclass", "regression"]
 
+    def _get_default_stopping_metric(self):
+        return self.eval_metric
+
     def _get_default_resources(self) -> tuple[int, int]:
         # logical=False is faster in training
         num_cpus = ResourceManager.get_cpu_count_psutil(logical=False)
-        num_gpus = 0
+        num_gpus = 0  # TODO: Test GPU support
         return num_cpus, num_gpus
 
     def _estimate_memory_usage(self, X: pd.DataFrame, **kwargs) -> int:

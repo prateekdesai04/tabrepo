@@ -17,7 +17,7 @@ from tabrepo.benchmark.models.ag import RealMLPModel
 # If the artifact is present, it will be used and the models will not be re-run.
 if __name__ == '__main__':
     # Load Context
-    context_name = "D244_F3_C1530_30"  # 30 Datasets. To run larger, set to "D244_F3_C1530_200"
+    context_name = "D244_F3_C1530_200"  # 200 smallest datasets. To run larger, set to "D244_F3_C1530_200"
     expname = "./initial_experiment_simple_simulator"  # folder location of all experiment artifacts
     ignore_cache = False  # set to True to overwrite existing caches and re-run experiments from scratch
 
@@ -59,6 +59,8 @@ if __name__ == '__main__':
                 "random_state": 0,
                 "use_early_stopping": False,
                 "use_ls": None,
+                "bool_to_cat": False,
+                "impute_bool": True,
             },
         ),
         AGModelBagExperiment(  # 2025/02/01 num_cpus=192, pytabkit==1.1.3
@@ -68,6 +70,8 @@ if __name__ == '__main__':
                 "random_state": 0,
                 "use_early_stopping": False,
                 "use_ls": "auto",
+                "bool_to_cat": False,
+                "impute_bool": True,
             },
         ),
         AGModelBagExperiment(  # 2025/02/01 num_cpus=192, pytabkit==1.1.3
@@ -77,7 +81,9 @@ if __name__ == '__main__':
                 "random_state": 0,
                 "use_early_stopping": False,
                 "use_ls": "auto",
-                "use_roc_auc_to_stop": True,
+                "bool_to_cat": False,
+                "impute_bool": True,
+                # "use_roc_auc_to_stop": True,
             },
         ),
         AGModelBagExperiment(  # 2025/02/07 num_cpus=192, pytabkit==1.2.1
@@ -87,7 +93,7 @@ if __name__ == '__main__':
                 "random_state": 0,
                 "use_early_stopping": False,
                 "use_ls": "auto",
-                "use_roc_auc_to_stop": True,
+                # "use_roc_auc_to_stop": True,
                 "bool_to_cat": True,
                 "impute_bool": False,
                 "name_categories": True,
@@ -100,13 +106,18 @@ if __name__ == '__main__':
                 "random_state": 0,
                 "use_early_stopping": False,
                 "use_ls": "auto",
-                "use_roc_auc_to_stop": True,
+                # "use_roc_auc_to_stop": True,
                 "bool_to_cat": True,
                 "impute_bool": False,
                 "name_categories": True,
-                "td_s_reg": False,
+                # "td_s_reg": False,
             },
         ),
+        # AGModelBagExperiment(  # 2025/03/05 num_cpus=192, pytabkit==1.2.1
+        #     name="RealMLP_c1_BAG_L1",
+        #     model_cls=RealMLPModel,
+        #     model_hyperparameters={},
+        # ),
     ]
 
     exp_batch_runner = ExperimentBatchRunner(
@@ -115,18 +126,18 @@ if __name__ == '__main__':
         cache_path_format="task_first",
     )
 
-    results_lst = exp_batch_runner.load_results(
-        methods=methods,
-        datasets=datasets,
-        folds=folds,
-    )
-
-    # results_lst = exp_batch_runner.run(
+    # results_lst = exp_batch_runner.load_results(
     #     methods=methods,
     #     datasets=datasets,
     #     folds=folds,
-    #     ignore_cache=ignore_cache,
     # )
+
+    results_lst = exp_batch_runner.run(
+        methods=methods,
+        datasets=datasets,
+        folds=folds,
+        ignore_cache=ignore_cache,
+    )
 
     repo = exp_batch_runner.repo_from_results(results_lst=results_lst)
 
@@ -180,6 +191,7 @@ if __name__ == '__main__':
         "RealMLP_c2_BAG_L1_AutoLS_AUCStop_boolcat_impF_naT",  # 200x3
         # "RealMLP_c2_BAG_L1_AutoLS_AUCStop_impF_naT",  # 175x3
         "RealMLP_c2_BAG_L1_TD",  # 200x3
+        # "RealMLP_c1_BAG_L1",
     ]
 
     evaluator.compute_avg_config_prediction_delta(configs=comparison_configs + ["EBM_BAG_L1", "TabPFNv2_N4_BAG_L1", "TabPFN_Mix7_600000_N4_E30_FIX_BAG_L1"])
@@ -216,8 +228,8 @@ if __name__ == '__main__':
     df_ensemble_results_og = df_ensemble_results_og.reset_index()
     df_ensemble_results_og["framework"] = "ensemble_og"
 
-    from script_utils import load_ag11_bq_baseline
-    df_processed_ag11_2024 = load_ag11_bq_baseline(datasets=repo_combined.datasets(), folds=repo_combined.folds, repo=repo_combined)
+    # from script_utils import load_ag11_bq_baseline
+    # df_processed_ag11_2024 = load_ag11_bq_baseline(datasets=repo_combined.datasets(), folds=repo_combined.folds, repo=repo_combined)
 
     repo_og.set_config_fallback("ExtraTrees_c1_BAG_L1")
     df_zeroshot_portfolio_og = evaluator.zeroshot_portfolio(configs=repo_og.configs())
@@ -241,7 +253,7 @@ if __name__ == '__main__':
     results_df = pd.concat([
         df_ensemble_results,
         df_ensemble_results_og,
-        df_processed_ag11_2024,
+        # df_processed_ag11_2024,
         df_zeroshot_portfolio_og,
         df_zeroshot_portfolio_w_realmlp,
         df_zeroshot_portfolio_w_realmlp_single,
@@ -252,7 +264,7 @@ if __name__ == '__main__':
 
     baselines = [
         "AutoGluon_bq_4h8c_2023_11_14",
-        "AutoGluon_bq_4h8c_2024_10_25",
+        # "AutoGluon_bq_4h8c_2024_10_25",
     ]
 
     p = evaluator.plot_ensemble_weights(df_ensemble_weights=df_ensemble_weights, figsize=(16, 60))
