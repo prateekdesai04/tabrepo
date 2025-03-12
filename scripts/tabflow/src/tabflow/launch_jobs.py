@@ -107,7 +107,7 @@ class TrainingJobResourceManager:
     def remove_completed_jobs(self, s3_client, s3_bucket):
         completed_jobs = []
         for job_name in self.job_names:
-            response = self.sagemaker_client.describe_training_job(TrainingJobName=job_name)
+            response = self.sagemaker_client.describe_training_job(TrainingJobName=job_name)    #FIXME:Throttling will happen here if Queue is too big
             job_status = response['TrainingJobStatus']
             if job_status in ['Completed', 'Failed', 'Stopped']:
                 save_training_job_logs(
