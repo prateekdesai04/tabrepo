@@ -5,6 +5,7 @@ import json
 import time
 import random
 import logging
+import uuid
 
 from botocore.config import Config
 from datetime import datetime
@@ -34,7 +35,14 @@ def save_training_job_logs(sagemaker_client, s3_client, job_name, bucket, cache_
     """
     try:        
         # Create CloudWatch logs client + standard log_group
-        cloudwatch_logs = boto3.client('logs')
+        retry_config = Config(
+        connect_timeout=5,
+        read_timeout=10,
+        retries={'max_attempts':20,
+                'mode':'adaptive',
+                }
+        )
+        cloudwatch_logs = boto3.client('logs', config=retry_config)
         log_group ='/aws/sagemaker/TrainingJobs'
 
         response = cloudwatch_logs.describe_log_streams(
@@ -123,9 +131,9 @@ class TrainingJobResourceManager:
 
     def wait_for_available_slot(self, s3_client, s3_bucket, poll_interval=10):
         while True:
-            self.remove_completed_jobs(s3_client=s3_client, s3_bucket=s3_bucket)
             if len(self.job_names) < self.max_concurrent_jobs:
                 return len(self.job_names)
+            self.remove_completed_jobs(s3_client=s3_client, s3_bucket=s3_bucket)
             print(f"Currently running {len(self.job_names)}/{self.max_concurrent_jobs} jobs. Waiting...")
             time.sleep(poll_interval)
 
@@ -153,7 +161,7 @@ def launch_jobs(
         folds: list = None,
         methods_file: str = "methods.yaml",
         max_concurrent_jobs: int = 30,
-        max_retry_attempts: int = 10,
+        max_retry_attempts: int = 20,
         s3_bucket: str = "prateek-ag",
         add_timestamp: bool = False,
         wait: bool = False,
@@ -244,7 +252,8 @@ def launch_jobs(
 
                     # Create a unique job name
                     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-                    base_name = f"{dataset[:4]}-f{fold}-{method_name[:4]}-{timestamp}"
+                    unique_id = str(uuid.uuid4().int)[:19]
+                    base_name = f"{dataset[:4]}-f{fold}-{method_name[:4]}-{timestamp}-{unique_id}"
                     job_name = sanitize_job_name(base_name)
 
 
@@ -280,7 +289,7 @@ def launch_jobs(
 
                     # Launch the training job
                     estimator.fit(wait=False, job_name=job_name)
-                    resource_manager.add_job(job_name=job_name, cache_path=cache_path)   # Get job_id from estimator, or use job Name?
+                    resource_manager.add_job(job_name=job_name, cache_path=cache_path)
                     total_launched_jobs += 1
                     print(f"Launched job {total_launched_jobs} out of a total of {total_jobs} concurrrent jobs: {job_name}\n")
         
