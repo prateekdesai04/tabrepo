@@ -134,7 +134,7 @@ class TrainingJobResourceManager:
             if len(self.job_names) < self.max_concurrent_jobs:
                 return len(self.job_names)
             self.remove_completed_jobs(s3_client=s3_client, s3_bucket=s3_bucket)
-            print(f"Currently running {len(self.job_names)}/{self.max_concurrent_jobs} jobs. Waiting...")
+            print(f"Currently running {len(self.job_names)}/{self.max_concurrent_jobs} concurrent jobs. Waiting...")
             time.sleep(poll_interval)
 
     def wait_for_all_jobs(self, s3_client, s3_bucket, poll_interval=10):
@@ -291,7 +291,7 @@ def launch_jobs(
                     estimator.fit(wait=False, job_name=job_name)
                     resource_manager.add_job(job_name=job_name, cache_path=cache_path)
                     total_launched_jobs += 1
-                    print(f"Launched job {total_launched_jobs} out of a total of {total_jobs} concurrrent jobs: {job_name}\n")
+                    print(f"Launched job {total_launched_jobs} out of a total of {total_jobs} jobs: {job_name}\n")
         
         if wait:
             resource_manager.wait_for_all_jobs(s3_client=s3_client, s3_bucket=s3_bucket)
