@@ -152,7 +152,7 @@ def launch_jobs(
         source_dir: str = str(Path(__file__).parent),
         instance_type: str = "ml.m6i.4xlarge",
         docker_image_uri: str = "mlflow-image",
-        sagemaker_role: str = "arn:aws:iam::097403188315:role/service-role/AmazonSageMaker-ExecutionRole-20250128T153145",
+        sagemaker_role: str = "arn:aws:iam::{ACCOUNT_ID}:role/service-role/{ROLE}",
         aws_profile: str | None = None,
         hyperparameters: dict = None,
         keep_alive_period_in_seconds: int = 3600,
