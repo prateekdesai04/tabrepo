@@ -285,6 +285,7 @@ def launch_jobs(
                         hyperparameters=job_hyperparameters,
                         keep_alive_period_in_seconds=keep_alive_period_in_seconds,
                         max_run=limit_runtime,
+                        disable_profiler=True,  # Prevent debug profiler from running
                     )
 
                     # Launch the training job
